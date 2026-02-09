@@ -1,42 +1,135 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Fix CTFd layout */
+main {
+  max-width: none;
+  width: 100%;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Hide version alert */
+.bg-warning {
+  display: none !important;
+}
+
+/* Remove default container padding */
+main > div {
+  padding: 0 !important;
+  margin: 0 !important;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+body {
+  background-color: #31343f;
+  color: #e9ecef;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+#marking-hub-app {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 2rem 0;
+}
+
+.app-container {
+  width: 90%;
+  max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+h1 {
+  margin-bottom: 0.5rem;
+  color: #e9ecef;
+  font-size: 2.2rem;
   text-align: center;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+h2 {
+  margin-bottom: 2rem;
+  color: #adb5bd;
+  font-size: 1.2rem;
+  text-align: center;
+  font-weight: 400;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.submission-tile {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  border: 1px solid #495057;
+  border-radius: 4px;
+  background-color: #3d4048;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  transition: box-shadow 0.2s;
+  width: 100%;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.submission-tile:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  cursor: pointer;
+  background-color: #454c55;
 }
 
-.card {
-  padding: 2em;
+.tile-left {
+  flex: 0 0 220px;
+  border-right: 1px solid #495057;
+  padding-right: 1.5rem;
 }
 
-.read-the-docs {
-  color: #888;
+.tile-name {
+  font-weight: 600;
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+  color: #e9ecef;
+}
+
+.tile-meta {
+  font-size: 0.9rem;
+  color: #adb5bd;
+}
+
+.tile-center {
+  flex: 1;
+  text-align: center;
+  border-right: 1px solid #495057;
+  padding: 0 2rem;
+}
+
+.tile-label {
+  font-size: 0.75rem;
+  color: #868e96;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.tile-value {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #e9ecef;
+}
+
+.tile-right {
+  flex: 0 0 140px;
+  text-align: center;
+}
+
+.tile-right .tile-value {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #51cf66;
 }
