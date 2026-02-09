@@ -1,5 +1,7 @@
 from flask import render_template
 
+from CTFd.plugins import register_plugin_assets_directory
+
 def load(app):
 
     # marking hub dashboard route (homepage)
@@ -10,4 +12,10 @@ def load(app):
     # submission viewing route
 
     # mark table route
-    
+
+    # plugin assets route
+    register_plugin_assets_directory(
+        app,
+        base_path="/plugins/CTFd_Marking_Hub/assets/",
+        admins_only=True
+    )
