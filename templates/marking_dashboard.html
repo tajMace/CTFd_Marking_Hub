@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Marking Dashboard</title>
-    <link rel="stylesheet" href="/marking_hub_assets/index.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ nonce }}">
+  <title>Marking Dashboard</title>
+  <link rel="stylesheet" href="/marking_hub_assets/index.css">
 </head>
 <body>
-    <div id="marking-hub-app"></div>
-    <script type="module" src="/marking_hub_assets/index.js"></script>
+  <div id="marking-hub-app"></div>
+  <script type="module" src="/marking_hub_assets/index.js"></script>
 </body>
 </html>

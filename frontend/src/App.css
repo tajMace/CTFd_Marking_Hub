@@ -43,9 +43,6 @@ body {
 .app-container {
   width: 90%;
   max-width: 1200px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
 }
 
 h1 {
@@ -56,11 +53,41 @@ h1 {
 }
 
 h2 {
-  margin-bottom: 2rem;
+  margin-bottom: 3rem;
   color: #adb5bd;
   font-size: 1.2rem;
   text-align: center;
   font-weight: 400;
+}
+
+.submissions-list {
+  width: 100%;
+}
+
+.section {
+  margin-bottom: 4rem;
+}
+
+.section-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #51cf66;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 3px solid #51cf66;
+  text-align: left;
+}
+
+.section-subtitle {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #e9ecef;
+  margin: 1rem 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #495057;
+  text-align: left;
 }
 
 .submission-tile {
@@ -73,7 +100,7 @@ h2 {
   border-radius: 4px;
   background-color: #3d4048;
   box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-  transition: box-shadow 0.2s;
+  transition: all 0.2s;
   width: 100%;
 }
 
@@ -81,6 +108,7 @@ h2 {
   box-shadow: 0 2px 8px rgba(0,0,0,0.5);
   cursor: pointer;
   background-color: #454c55;
+  transform: translateY(-2px);
 }
 
 .tile-left {
@@ -132,4 +160,44 @@ h2 {
   font-size: 1.2rem;
   font-weight: 600;
   color: #51cf66;
+}
+
+.back-btn {
+  margin-bottom: 2rem;
+  padding: 0.75rem 1.5rem;
+  background-color: #3d4048;
+  color: #e9ecef;
+  border: 1px solid #495057;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s;
+}
+
+.back-btn:hover {
+  background-color: #454c55;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.empty-state {
+  background-color: #3d4048;
+  border: 1px solid #495057;
+  border-radius: 6px;
+  padding: 3rem 2rem;
+  text-align: center;
+  margin-top: 2.5rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.empty-state h2 {
+  margin-bottom: 1.5rem;
+  color: #51cf66;
+  font-size: 1.5rem;
+}
+
+.empty-state-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
 }
