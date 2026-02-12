@@ -1,7 +1,83 @@
 from CTFd.models import db
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
+
+
+class MarkingAssignment(db.Model):
+    """
+    Assigns a registered user to a specific admin/tutor.
+    One user can be assigned to at most one tutor.
+    """
+    __tablename__ = "marking_assignments"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_marking_assignments_user_id"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    tutor_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    assigned_at = Column(DateTime, nullable=True)
+
+    user = relationship("Users", foreign_keys=[user_id], lazy="joined")
+    tutor = relationship("Users", foreign_keys=[tutor_id], lazy="joined")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "userId": self.user_id,
+            "userName": self.user.name if self.user else None,
+            "userEmail": self.user.email if self.user else None,
+            "tutorId": self.tutor_id,
+            "tutorName": self.tutor.name if self.tutor else None,
+            "tutorEmail": self.tutor.email if self.tutor else None,
+            "assignedAt": self.assigned_at.strftime("%Y-%m-%d %H:%M:%S") if self.assigned_at else None,
+        }
+
+
+class MarkingTutor(db.Model):
+    """
+    Explicitly marks a user as a tutor (separate from admins).
+    """
+    __tablename__ = "marking_tutors"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_marking_tutors_user_id"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, nullable=True, default=datetime.utcnow)
+
+    user = relationship("Users", foreign_keys=[user_id], lazy="joined")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "userId": self.user_id,
+            "userName": self.user.name if self.user else None,
+            "userEmail": self.user.email if self.user else None,
+            "createdAt": self.created_at.strftime("%Y-%m-%d %H:%M:%S") if self.created_at else None,
+        }
+
+class MarkingDeadline(db.Model):
+    """
+    Stores marking due dates for challenges.
+    """
+    __tablename__ = "marking_deadlines"
+    __table_args__ = (UniqueConstraint("challenge_id", name="uq_marking_deadlines_challenge_id"),)
+
+    id = Column(Integer, primary_key=True)
+    challenge_id = Column(Integer, ForeignKey("challenges.id", ondelete="CASCADE"), nullable=False)
+    due_date = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, nullable=True, default=datetime.utcnow)
+
+    challenge = relationship("Challenges", foreign_keys=[challenge_id], lazy="joined")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "challengeId": self.challenge_id,
+            "challengeName": self.challenge.name if self.challenge else None,
+            "dueDate": self.due_date.strftime("%Y-%m-%d %H:%M:%S") if self.due_date else None,
+            "createdAt": self.created_at.strftime("%Y-%m-%d %H:%M:%S") if self.created_at else None,
+        }
+
 
 class MarkingSubmission(db.Model):
     """
@@ -36,6 +112,7 @@ class MarkingSubmission(db.Model):
         sub = self.submission
         user = sub.user
         challenge = sub.challenge
+        assignment = MarkingAssignment.query.filter_by(user_id=sub.user_id).first()
 
         return {
             "id": self.id,
@@ -54,4 +131,6 @@ class MarkingSubmission(db.Model):
             "comment": self.comment,
             "markedAt": self.marked_at.strftime("%Y-%m-%d %H:%M:%S") if self.marked_at else None,
             "markedBy": self.marker.name if self.marker else None,
+            "assignedTutorId": assignment.tutor_id if assignment else None,
+            "assignedTutorName": assignment.tutor.name if assignment and assignment.tutor else None,
         }

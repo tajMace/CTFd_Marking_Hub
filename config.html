@@ -2,7 +2,438 @@
 
 {% block content %}
   <div class="container">
-    <h1>Marking Dashboard</h1>
+    <h1>Marking Hub - Tutor Management</h1>
     <p><a href="/marking_hub">Open marking dashboard</a></p>
+
+    <div class="card mb-4">
+      <div class="card-header">
+        <strong>Add Tutor</strong>
+      </div>
+      <div class="card-body">
+        <form id="add-tutor-form" class="form-inline">
+          <div class="form-group mb-2 mr-3">
+            <label for="tutor-user-id" class="mr-2">User ID</label>
+            <input type="number" class="form-control" id="tutor-user-id" placeholder="e.g. 42" required />
+          </div>
+          <button type="submit" class="btn btn-primary mb-2">Add Tutor</button>
+        </form>
+        <small class="text-muted">Tip: Use the Users admin page to find the user ID.</small>
+        <div id="tutor-error" class="text-danger mt-2" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-header">
+        <strong>Current Tutors</strong>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>User ID</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tutors-table-body">
+              <tr>
+                <td colspan="4" class="text-center text-muted">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-header">
+        <strong>Assign Student to Tutor</strong>
+      </div>
+      <div class="card-body">
+        <form id="assign-student-form" class="form-inline">
+          <div class="form-group mb-2 mr-3">
+            <label for="student-user-id" class="mr-2">Student User ID</label>
+            <input type="number" class="form-control" id="student-user-id" placeholder="e.g. 5" required />
+          </div>
+          <div class="form-group mb-2 mr-3">
+            <label for="assign-tutor-id" class="mr-2">Tutor User ID</label>
+            <input type="number" class="form-control" id="assign-tutor-id" placeholder="e.g. 42" required />
+          </div>
+          <button type="submit" class="btn btn-primary mb-2">Assign</button>
+        </form>
+        <small class="text-muted">Assign a student to a tutor for marking.</small>
+        <div id="assignment-error" class="text-danger mt-2" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <strong>Current Assignments</strong>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>Student ID</th>
+                <th>Student Name</th>
+                <th>Student Email</th>
+                <th>Tutor ID</th>
+                <th>Tutor Name</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="assignments-table-body">
+              <tr>
+                <td colspan="6" class="text-center text-muted">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-4 mt-4">
+      <div class="card-header">
+        <strong>Set Marking Deadline</strong>
+      </div>
+      <div class="card-body">
+        <form id="set-deadline-form" class="form-inline">
+          <div class="form-group mb-2 mr-3">
+            <label for="deadline-challenge-id" class="mr-2">Challenge ID</label>
+            <input type="number" class="form-control" id="deadline-challenge-id" placeholder="e.g. 10" required />
+          </div>
+          <div class="form-group mb-2 mr-3">
+            <label for="deadline-due-date" class="mr-2">Due Date</label>
+            <input type="datetime-local" class="form-control" id="deadline-due-date" required />
+          </div>
+          <button type="submit" class="btn btn-primary mb-2">Set Deadline</button>
+        </form>
+        <small class="text-muted">Tip: Use the Challenges admin page to find the challenge ID.</small>
+        <div id="deadline-error" class="text-danger mt-2" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <strong>Current Marking Deadlines</strong>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>Challenge ID</th>
+                <th>Challenge Name</th>
+                <th>Due Date</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="deadlines-table-body">
+              <tr>
+                <td colspan="4" class="text-center text-muted">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    const tutorError = document.getElementById("tutor-error");
+    const tutorsTableBody = document.getElementById("tutors-table-body");
+    const addTutorForm = document.getElementById("add-tutor-form");
+    const tutorUserIdInput = document.getElementById("tutor-user-id");
+
+    const assignmentError = document.getElementById("assignment-error");
+    const assignmentsTableBody = document.getElementById("assignments-table-body");
+    const assignStudentForm = document.getElementById("assign-student-form");
+    const studentUserIdInput = document.getElementById("student-user-id");
+    const assignTutorIdInput = document.getElementById("assign-tutor-id");
+
+    const deadlineError = document.getElementById("deadline-error");
+    const deadlinesTableBody = document.getElementById("deadlines-table-body");
+    const setDeadlineForm = document.getElementById("set-deadline-form");
+    const deadlineChallengeIdInput = document.getElementById("deadline-challenge-id");
+    const deadlineDueDateInput = document.getElementById("deadline-due-date");
+
+    const showError = (message) => {
+      tutorError.textContent = message;
+      tutorError.style.display = "block";
+    };
+
+    const clearError = () => {
+      tutorError.textContent = "";
+      tutorError.style.display = "none";
+    };
+
+    const showAssignmentError = (message) => {
+      assignmentError.textContent = message;
+      assignmentError.style.display = "block";
+    };
+
+    const clearAssignmentError = () => {
+      assignmentError.textContent = "";
+      assignmentError.style.display = "none";
+    };
+
+    const showDeadlineError = (message) => {
+      deadlineError.textContent = message;
+      deadlineError.style.display = "block";
+    };
+
+    const clearDeadlineError = () => {
+      deadlineError.textContent = "";
+      deadlineError.style.display = "none";
+    };
+
+    const renderTutors = (tutors) => {
+      if (!Array.isArray(tutors) || tutors.length === 0) {
+        tutorsTableBody.innerHTML = "<tr><td colspan=\"4\" class=\"text-center text-muted\">No tutors configured</td></tr>";
+        return;
+      }
+
+      tutorsTableBody.innerHTML = "";
+      tutors.forEach((tutor) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${tutor.userId ?? ""}</td>
+          <td>${tutor.userName ?? ""}</td>
+          <td>${tutor.userEmail ?? ""}</td>
+          <td>
+            <button class="btn btn-sm btn-danger" data-user-id="${tutor.userId}">Remove</button>
+          </td>
+        `;
+        row.querySelector("button").addEventListener("click", () => removeTutor(tutor.userId));
+        tutorsTableBody.appendChild(row);
+      });
+    };
+
+    const renderAssignments = (assignments) => {
+      if (!Array.isArray(assignments) || assignments.length === 0) {
+        assignmentsTableBody.innerHTML = "<tr><td colspan=\"6\" class=\"text-center text-muted\">No assignments</td></tr>";
+        return;
+      }
+
+      assignmentsTableBody.innerHTML = "";
+      assignments.forEach((assignment) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${assignment.userId ?? ""}</td>
+          <td>${assignment.userName ?? ""}</td>
+          <td>${assignment.userEmail ?? ""}</td>
+          <td>${assignment.tutorId ?? "N/A"}</td>
+          <td>${assignment.tutorName ?? "N/A"}</td>
+          <td>
+            <button class="btn btn-sm btn-danger" data-user-id="${assignment.userId}">Remove</button>
+          </td>
+        `;
+        row.querySelector("button").addEventListener("click", () => removeAssignment(assignment.userId));
+        assignmentsTableBody.appendChild(row);
+      });
+    };
+
+    const renderDeadlines = (deadlines) => {
+      if (!Array.isArray(deadlines) || deadlines.length === 0) {
+        deadlinesTableBody.innerHTML = "<tr><td colspan=\"4\" class=\"text-center text-muted\">No deadlines set</td></tr>";
+        return;
+      }
+
+      deadlinesTableBody.innerHTML = "";
+      deadlines.forEach((deadline) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${deadline.challengeId ?? ""}</td>
+          <td>${deadline.challengeName ?? "N/A"}</td>
+          <td>${deadline.dueDate ?? "N/A"}</td>
+          <td>
+            <button class="btn btn-sm btn-danger" data-challenge-id="${deadline.challengeId}">Remove</button>
+          </td>
+        `;
+        row.querySelector("button").addEventListener("click", () => removeDeadline(deadline.challengeId));
+        deadlinesTableBody.appendChild(row);
+      });
+    };
+
+    const loadTutors = async () => {
+      clearError();
+      const res = await fetch("/api/marking_hub/tutors", { credentials: "same-origin" });
+      if (!res.ok) {
+        showError("Failed to load tutors.");
+        return;
+      }
+      const data = await res.json();
+      renderTutors(data);
+    };
+
+    const loadAssignments = async () => {
+      clearAssignmentError();
+      const res = await fetch("/api/marking_hub/assignments", { credentials: "same-origin" });
+      if (!res.ok) {
+        showAssignmentError("Failed to load assignments.");
+        return;
+      }
+      const data = await res.json();
+      renderAssignments(data);
+    };
+
+    const loadDeadlines = async () => {
+      clearDeadlineError();
+      const res = await fetch("/api/marking_hub/deadlines", { credentials: "same-origin" });
+      if (!res.ok) {
+        showDeadlineError("Failed to load deadlines.");
+        return;
+      }
+      const data = await res.json();
+      renderDeadlines(data);
+    };
+
+    const addTutor = async (userId) => {
+      clearError();
+      const res = await fetch("/api/marking_hub/tutors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ user_id: Number(userId) }),
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        showError(payload.message || "Failed to add tutor.");
+        return;
+      }
+
+      tutorUserIdInput.value = "";
+      await loadTutors();
+    };
+
+    const removeTutor = async (userId) => {
+      clearError();
+      const res = await fetch(`/api/marking_hub/tutors/${userId}`, {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        showError(payload.message || "Failed to remove tutor.");
+        return;
+      }
+
+      await loadTutors();
+    };
+
+    const assignStudent = async (studentId, tutorId) => {
+      clearAssignmentError();
+      const res = await fetch(`/api/marking_hub/assignments/${studentId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ tutor_id: Number(tutorId) }),
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        showAssignmentError(payload.message || "Failed to assign student.");
+        return;
+      }
+
+      studentUserIdInput.value = "";
+      assignTutorIdInput.value = "";
+      await loadAssignments();
+    };
+
+    const removeAssignment = async (userId) => {
+      clearAssignmentError();
+      const res = await fetch(`/api/marking_hub/assignments/${userId}`, {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        showAssignmentError(payload.message || "Failed to remove assignment.");
+        return;
+      }
+
+      await loadAssignments();
+    };
+
+    const setDeadline = async (challengeId, dueDate) => {
+      clearDeadlineError();
+      const res = await fetch(`/api/marking_hub/deadlines/${challengeId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ due_date: dueDate }),
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        showDeadlineError(payload.message || "Failed to set deadline.");
+        return;
+      }
+
+      deadlineChallengeIdInput.value = "";
+      deadlineDueDateInput.value = "";
+      await loadDeadlines();
+    };
+
+    const removeDeadline = async (challengeId) => {
+      clearDeadlineError();
+      const res = await fetch(`/api/marking_hub/deadlines/${challengeId}`, {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        showDeadlineError(payload.message || "Failed to remove deadline.");
+        return;
+      }
+
+      await loadDeadlines();
+    };
+
+    addTutorForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const userId = tutorUserIdInput.value.trim();
+      if (!userId) {
+        showError("User ID is required.");
+        return;
+      }
+      addTutor(userId);
+    });
+
+    assignStudentForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const studentId = studentUserIdInput.value.trim();
+      const tutorId = assignTutorIdInput.value.trim();
+      if (!studentId || !tutorId) {
+        showAssignmentError("Both Student ID and Tutor ID are required.");
+        return;
+      }
+      assignStudent(studentId, tutorId);
+    });
+
+    setDeadlineForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const challengeId = deadlineChallengeIdInput.value.trim();
+      const dueDate = deadlineDueDateInput.value.trim();
+      if (!challengeId || !dueDate) {
+        showDeadlineError("Both Challenge ID and Due Date are required.");
+        return;
+      }
+      setDeadline(challengeId, dueDate);
+    });
+
+    loadTutors();
+    loadAssignments();
+    loadDeadlines();
+  </script>
 {% endblock %}

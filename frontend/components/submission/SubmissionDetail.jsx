@@ -5,10 +5,24 @@ import SubmissionTile from '../dashboard/SubmissionTile';
 export default function SubmissionDetail({ submission, relatedSubmissions, onSelectRelated, onNext, onPrevious, onSave }) {
   const [mark, setMark] = useState(submission.mark ?? '');
   const [comment, setComment] = useState(submission.comment ?? '');
+  const [error, setError] = useState('');
 
   const handleSave = async () => {
+    // Validate that mark is provided
+    if (mark === '' || mark === null || mark === undefined) {
+      setError('Mark is required. Please enter a value between 0-100.');
+      return;
+    }
+
+    const markValue = Number(mark);
+    if (isNaN(markValue) || markValue < 0 || markValue > 100) {
+      setError('Mark must be a number between 0 and 100.');
+      return;
+    }
+
+    setError('');
     try {
-      const result = await onSave(submission.id, mark, comment, {
+      const result = await onSave(submission.id, markValue, comment, {
         wasUnmarked: submission.mark === null,
       });
       if (result?.showEmptyState) {
@@ -65,7 +79,7 @@ export default function SubmissionDetail({ submission, relatedSubmissions, onSel
           <h3>Marking</h3>
           
           <div className="form-group">
-            <label htmlFor="mark">Mark</label>
+            <label htmlFor="mark">Mark *</label>
             <input
               id="mark"
               type="number"
@@ -74,6 +88,7 @@ export default function SubmissionDetail({ submission, relatedSubmissions, onSel
               value={mark}
               onChange={(e) => setMark(e.target.value)}
               placeholder="Enter mark (0-100)"
+              required
             />
           </div>
 
@@ -87,6 +102,12 @@ export default function SubmissionDetail({ submission, relatedSubmissions, onSel
               rows="8"
             />
           </div>
+
+          {error && (
+            <div className="error-message">
+              {error}
+            </div>
+          )}
 
           <button className="save-btn" onClick={handleSave}>
             Save Mark & Comment
