@@ -19,6 +19,9 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [showEmptyState, setShowEmptyState] = useState(false);
   const [deadlines, setDeadlines] = useState([]);
+  const [unmarkedOnly, setUnmarkedOnly] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('');
 
   // Fetch submissions from API on mount
   useEffect(() => {
@@ -83,10 +86,11 @@ function App() {
           return;
         }
 
-        const [submissionsRes, assignmentsRes, deadlinesRes] = await Promise.all([
+        const [submissionsRes, assignmentsRes, deadlinesRes, categoriesRes] = await Promise.all([
           fetch('/api/marking_hub/submissions', { credentials: 'same-origin' }),
           fetch('/api/marking_hub/assignments/mine', { credentials: 'same-origin' }),
           fetch('/api/marking_hub/deadlines', { credentials: 'same-origin' }),
+          fetch('/api/marking_hub/categories-with-counts', { credentials: 'same-origin' }),
         ]);
 
         if (!submissionsRes.ok) {
@@ -96,10 +100,12 @@ function App() {
         const data = await submissionsRes.json();
         const assignments = await assignmentsRes.json().catch(() => []);
         const deadlinesData = await deadlinesRes.json().catch(() => []);
+        const categoriesData = await categoriesRes.json().catch(() => { return { categories: [] }; });
         if (isMounted) {
           setSubmissions(data);
           setAssignedUsers(Array.isArray(assignments) ? assignments : []);
           setDeadlines(Array.isArray(deadlinesData) ? deadlinesData : []);
+          setCategories(Array.isArray(categoriesData.categories) ? categoriesData.categories : []);
         }
       } catch (err) {
         console.error('Failed to initialize:', err);
@@ -208,6 +214,22 @@ function App() {
     return latestSubmissions.filter(sub => sub.mark !== null);
   }, [latestSubmissions]);
 
+  const filteredSubmissions = useMemo(() => {
+    let result = latestSubmissions;
+    
+    // Filter by category if selected
+    if (selectedCategory) {
+      result = result.filter(sub => sub.category === selectedCategory);
+    }
+    
+    // Filter unmarked only if toggled
+    if (unmarkedOnly) {
+      result = result.filter(sub => sub.mark === null);
+    }
+    
+    return result;
+  }, [latestSubmissions, selectedCategory, unmarkedOnly]);
+
   const selectedSubmission = visibleSubmissions.find(s => s.id === selectedSubmissionId);
 
   const relatedSubmissions = useMemo(() => {
@@ -310,6 +332,7 @@ function App() {
         return {
           challengeId: group.challengeId,
           challenge: group.challenge,
+          submissions: group.submissions,
           unmarkedCount,
           markedCount,
           latestSubmittedAt: sorted[0]?.submittedAt ?? '',
@@ -330,6 +353,47 @@ function App() {
         return (a.challenge || '').localeCompare(b.challenge || '');
       });
   }, [visibleSubmissions, assignedUsers]);
+
+  const filteredExercises = useMemo(() => {
+    let result = exerciseGroups;
+    
+    // Filter by category if selected
+    if (selectedCategory) {
+      result = result.map(group => {
+        // Filter submissions in this group by category
+        const filteredSubs = group.submissions.filter(sub => 
+          (sub.category || 'Uncategorized') === selectedCategory
+        );
+        // Only include groups that have submissions after filtering
+        if (filteredSubs.length === 0) {
+          return null;
+        }
+        // Return group with filtered submissions
+        return {
+          ...group,
+          submissions: filteredSubs,
+          unmarkedCount: filteredSubs.filter(sub => sub.mark === null).length,
+          markedCount: filteredSubs.filter(sub => sub.mark !== null).length,
+          submittedUserIds: new Set(filteredSubs.map(sub => sub.userId))
+        };
+      }).filter(Boolean);
+    }
+    
+    // Filter unmarked only if toggled
+    if (unmarkedOnly) {
+      result = result.filter(group => group.unmarkedCount > 0);
+    }
+    
+    return result;
+  }, [exerciseGroups, selectedCategory, unmarkedOnly]);
+
+  const progressStats = useMemo(() => {
+    const total = latestSubmissions.length;
+    const marked = latestSubmissions.filter(sub => sub.mark !== null).length;
+    const unmarked = total - marked;
+    const percentage = total > 0 ? Math.round((marked / total) * 100) : 0;
+    return { total, marked, unmarked, percentage };
+  }, [latestSubmissions]);
 
   const handleSave = (id, mark, comment, options = {}) => {
     return fetch(`/api/marking_hub/submissions/${id}`, {
@@ -478,6 +542,19 @@ function App() {
     <div className="app-container">
       <h1>1337 Marking Dashboard</h1>
       <h2>Marking Hub • {isAdmin ? 'Admin' : 'Tutor'}: {currentUser.name}</h2>
+      
+      {/* Progress Bar */}
+      <div className="progress-section">
+        <div className="progress-label">
+          <span>Marking Progress</span>
+          <span className="progress-stats">{progressStats.marked} / {progressStats.total} marked</span>
+        </div>
+        <div className="progress-bar-container">
+          <div className="progress-bar-fill" style={{ width: `${progressStats.percentage}%` }}></div>
+        </div>
+        <div className="progress-percentage">{progressStats.percentage}% Complete</div>
+      </div>
+
       <div className="view-toggle">
         <button
           className={`toggle-btn ${viewMode === 'submission' ? 'active' : ''}`}
@@ -491,14 +568,34 @@ function App() {
         >
           By Exercise
         </button>
+        <label className="unmarked-only-toggle">
+          <input
+            type="checkbox"
+            checked={unmarkedOnly}
+            onChange={(e) => setUnmarkedOnly(e.target.checked)}
+          />
+          <span>Unmarked only</span>
+        </label>
+        <select
+          className="category-filter"
+          value={selectedCategory}
+          onChange={(e) => setSelectedCategory(e.target.value)}
+        >
+          <option value="">All Categories</option>
+          {categories.map((cat) => (
+            <option key={cat.category} value={cat.category}>
+              {cat.category} ({cat.unmarkedCount} left)
+            </option>
+          ))}
+        </select>
       </div>
       {isAdmin && (
         <button className="back-btn" onClick={handleSync}>Sync Submissions</button>
       )}
       {viewMode === 'submission' ? (
-        <SubmissionsList submissions={latestSubmissions} onTileClick={handleTileClick} />
+        <SubmissionsList submissions={filteredSubmissions} onTileClick={handleTileClick} />
       ) : (
-        <ExerciseList exercises={exerciseGroups} onExerciseClick={handleExerciseClick} deadlines={deadlines} />
+        <ExerciseList exercises={filteredExercises} onExerciseClick={handleExerciseClick} deadlines={deadlines} />
       )}
     </div>
   );

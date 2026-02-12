@@ -1,10 +1,12 @@
 import os
-from flask import render_template, send_from_directory, jsonify, request
+from flask import render_template, send_from_directory, jsonify, request, send_file
 from CTFd.models import db, Users
 from CTFd.utils.decorators import admins_only, authed_only
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.plugins import bypass_csrf_protection
-from .models import MarkingSubmission, MarkingAssignment, MarkingTutor, MarkingDeadline
+from .models import MarkingSubmission, MarkingAssignment, MarkingTutor, MarkingDeadline, StudentReport
+from .utils.report_generator import generate_and_send_student_report, generate_weekly_reports, get_available_categories
+from .utils.pdf_generator import generate_student_report_pdf
 from datetime import datetime
 
 def load(app):
@@ -317,4 +319,186 @@ def load(app):
             db.session.delete(deadline)
             db.session.commit()
         return jsonify({"message": "Deadline removed"})
+
+    # API: Generate and send report for a specific student
+    @app.route("/api/marking_hub/reports/send/<int:user_id>", methods=["POST"])
+    @admins_only
+    @bypass_csrf_protection
+    def send_student_report(user_id):
+        from flask import request
+        user = get_current_user()
+        category = request.args.get('category', None)
+        success, message = generate_and_send_student_report(user_id, triggered_by_user_id=user.id, category=category)
+        
+        if success:
+            return jsonify({"success": True, "message": message})
+        else:
+            return jsonify({"success": False, "message": message}), 400
+
+    # API: Download student report as PDF
+    @app.route("/api/marking_hub/reports/download/<int:user_id>", methods=["GET"])
+    @admins_only
+    def download_student_report(user_id):
+        from CTFd.models import Users
+        from .utils.report_generator import get_student_submissions_for_report
+        from CTFd.utils import get_config
+        
+        student = Users.query.get_or_404(user_id)
+        submissions = get_student_submissions_for_report(user_id)
+        
+        if not submissions:
+            return jsonify({"error": "No marked submissions for this student"}), 404
+        
+        ctf_name = get_config('ctf_name', 'CTF')
+        pdf_buffer = generate_student_report_pdf(
+            student_name=student.name,
+            student_email=student.email,
+            submissions=submissions,
+            ctf_name=ctf_name
+        )
+        
+        filename = f"report_{student.name.replace(' ', '_')}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
+        return send_file(
+            pdf_buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename
+        )
+
+    # API: Get all student reports (admin only, for tracking)
+    @app.route("/api/marking_hub/reports", methods=["GET"])
+    @admins_only
+    def get_student_reports():
+        reports = StudentReport.query.order_by(StudentReport.sent_at.desc()).all()
+        return jsonify([report.to_dict() for report in reports])
+
+    # API: Get reports for a specific student
+    @app.route("/api/marking_hub/reports/student/<int:user_id>", methods=["GET"])
+    @admins_only
+    def get_student_reports_for_user(user_id):
+        reports = StudentReport.query.filter_by(user_id=user_id).order_by(StudentReport.sent_at.desc()).all()
+        return jsonify([report.to_dict() for report in reports])
+
+    # API: Trigger weekly reports for all students
+    @app.route("/api/marking_hub/reports/send-weekly", methods=["POST"])
+    @admins_only
+    @bypass_csrf_protection
+    def trigger_weekly_reports():
+        try:
+            results = generate_weekly_reports()
+            return jsonify({
+                "success": True,
+                "message": f"Reports sent to {results['sent']} students, {results['failed']} failed",
+                "details": results
+            })
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "message": f"Error generating reports: {str(e)}"
+            }), 500
+
+    # API: Get available challenge categories (weeks)
+    @app.route("/api/marking_hub/categories", methods=["GET"])
+    @admins_only
+    def get_categories():
+        try:
+            categories = get_available_categories()
+            return jsonify({
+                "success": True,
+                "categories": categories
+            })
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "message": f"Error fetching categories: {str(e)}"
+            }), 500
+
+    # API: Get categories with unmarked submission counts
+    @app.route("/api/marking_hub/categories-with-counts", methods=["GET"])
+    @authed_only
+    def get_categories_with_counts():
+        try:
+            from CTFd.models import Submissions, Challenges
+            from sqlalchemy import func
+            
+            user = get_current_user()
+            
+            # Get submissions visible to this user
+            if is_admin():
+                submissions_query = MarkingSubmission.query.join(
+                    Submissions, MarkingSubmission.submission_id == Submissions.id
+                ).join(
+                    Challenges, Submissions.challenge_id == Challenges.id
+                )
+            else:
+                if not _is_tutor(user.id):
+                    return jsonify({"message": "Forbidden"}), 403
+                
+                assigned_user_ids = [
+                    row.user_id
+                    for row in MarkingAssignment.query.filter_by(tutor_id=user.id).all()
+                ]
+                
+                if not assigned_user_ids:
+                    return jsonify({
+                        "success": True,
+                        "categories": []
+                    })
+                
+                submissions_query = MarkingSubmission.query.join(
+                    Submissions, MarkingSubmission.submission_id == Submissions.id
+                ).join(
+                    Challenges, Submissions.challenge_id == Challenges.id
+                ).filter(Submissions.user_id.in_(assigned_user_ids))
+            
+            # Get all submissions with their categories
+            submissions = submissions_query.all()
+            
+            # Group by category and count marked/unmarked
+            category_counts = {}
+            for sub in submissions:
+                category = sub.submission.challenge.category if sub.submission.challenge else "Uncategorized"
+                if category not in category_counts:
+                    category_counts[category] = {"total": 0, "unmarked": 0}
+                category_counts[category]["total"] += 1
+                if sub.mark is None:
+                    category_counts[category]["unmarked"] += 1
+            
+            # Format response
+            categories = [
+                {
+                    "category": cat,
+                    "unmarkedCount": counts["unmarked"],
+                    "totalCount": counts["total"]
+                }
+                for cat, counts in sorted(category_counts.items())
+            ]
+            
+            return jsonify({
+                "success": True,
+                "categories": categories
+            })
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "message": f"Error fetching categories with counts: {str(e)}"
+            }), 500
+
+    # API: Trigger reports for a specific category (week)
+    @app.route("/api/marking_hub/reports/send-by-category/<category>", methods=["POST"])
+    @admins_only
+    @bypass_csrf_protection
+    def trigger_category_reports(category):
+        try:
+            results = generate_weekly_reports(category=category)
+            return jsonify({
+                "success": True,
+                "message": f"Reports sent to {results['sent']} students for {category}, {results['failed']} failed",
+                "details": results
+            })
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "message": f"Error generating reports for {category}: {str(e)}"
+            }), 500
 

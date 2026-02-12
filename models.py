@@ -127,10 +127,42 @@ class MarkingSubmission(db.Model):
             "challengeUrl": f"/challenges#{challenge.id}" if challenge else None,
             "challengeHtml": challenge.html if challenge else None,
             "challengeConnectionInfo": challenge.connection_info if challenge else None,
+            "category": challenge.category if challenge else "Uncategorized",
             "mark": self.mark,
             "comment": self.comment,
             "markedAt": self.marked_at.strftime("%Y-%m-%d %H:%M:%S") if self.marked_at else None,
             "markedBy": self.marker.name if self.marker else None,
             "assignedTutorId": assignment.tutor_id if assignment else None,
             "assignedTutorName": assignment.tutor.name if assignment and assignment.tutor else None,
+        }
+
+
+class StudentReport(db.Model):
+    """
+    Tracks when student performance reports were generated and sent.
+    """
+    __tablename__ = "student_reports"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    sent_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    sent_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)  # Which admin triggered it
+    email_sent = Column(String(255), nullable=True)  # The email address it was sent to
+    submission_count = Column(Integer, nullable=False, default=0)  # How many submissions were in the report
+    marked_count = Column(Integer, nullable=False, default=0)  # How many were marked
+
+    user = relationship("Users", foreign_keys=[user_id], lazy="joined")
+    trigger_user = relationship("Users", foreign_keys=[sent_by], lazy="select")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "userId": self.user_id,
+            "userName": self.user.name if self.user else None,
+            "userEmail": self.user.email if self.user else None,
+            "sentAt": self.sent_at.strftime("%Y-%m-%d %H:%M:%S"),
+            "emailSent": self.email_sent,
+            "submissionCount": self.submission_count,
+            "markedCount": self.marked_count,
+            "sentBy": self.trigger_user.name if self.trigger_user else "System",
         }

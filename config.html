@@ -2,13 +2,31 @@
 
 {% block content %}
   <div class="container">
-    <h1>Marking Hub - Tutor Management</h1>
-    <p><a href="/marking_hub">Open marking dashboard</a></p>
+    <h1>Marking Hub Administration</h1>
+    <p class="text-muted mb-4"><a href="/marking_hub">↳ Open marking dashboard</a></p>
 
-    <div class="card mb-4">
-      <div class="card-header">
-        <strong>Add Tutor</strong>
-      </div>
+    <!-- Tab Navigation -->
+    <ul class="nav nav-tabs mb-4" id="markingTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="tutor-tab" data-bs-toggle="tab" data-bs-target="#tutor-section" type="button" role="tab">Tutor Management</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="reports-tab" data-bs-toggle="tab" data-bs-target="#reports-section" type="button" role="tab">Send Reports</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="deadlines-tab" data-bs-toggle="tab" data-bs-target="#deadlines-section" type="button" role="tab">Marking Deadlines</button>
+      </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="markingTabContent">
+
+    <!-- TUTOR MANAGEMENT TAB -->
+    <div class="tab-pane fade show active" id="tutor-section" role="tabpanel">
+      <div class="card mb-4">
+        <div class="card-header">
+          <strong>Add Tutor</strong>
+        </div>
       <div class="card-body">
         <form id="add-tutor-form" class="form-inline">
           <div class="form-group mb-2 mr-3">
@@ -68,7 +86,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card mb-4">
       <div class="card-header">
         <strong>Current Assignments</strong>
       </div>
@@ -94,11 +112,117 @@
         </div>
       </div>
     </div>
+    </div>
 
-    <div class="card mb-4 mt-4">
-      <div class="card-header">
-        <strong>Set Marking Deadline</strong>
+    <!-- SEND REPORTS TAB -->
+    <div class="tab-pane fade" id="reports-section" role="tabpanel">
+      <div class="card mb-4">
+        <div class="card-header">
+          <strong>Send Student Reports</strong>
+        </div>
+        <div class="card-body">
+          <p class="text-muted mb-4">Send performance reports to students. Reports include task feedback, marks, and comments in PDF format.</p>
+          
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <div class="card bg-light">
+                <div class="card-body">
+                  <h5 class="card-title">Batch Send to All</h5>
+                  <p class="card-text small text-muted">Send reports to all students with marked submissions.</p>
+                  <button id="send-weekly-reports-btn" type="button" class="btn btn-success w-100">
+                    <span id="send-weekly-text">Send All Reports</span>
+                    <span id="send-weekly-spinner" class="spinner-border spinner-border-sm ms-2" style="display:none;"></span>
+                  </button>
+                  <div id="send-weekly-status" class="alert mt-3" style="display:none;"></div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card bg-light">
+                <div class="card-body">
+                  <h5 class="card-title">Send by Week</h5>
+                  <p class="card-text small text-muted">Send reports for a specific week/category.</p>
+                  <form id="send-category-reports-form" class="d-flex gap-2">
+                    <select class="form-select" id="category-select" required>
+                      <option value="">Select a week...</option>
+                    </select>
+                    <button type="submit" class="btn btn-info">Send</button>
+                  </form>
+                  <div id="category-report-status" class="alert mt-3" style="display:none;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <div class="card bg-light">
+                <div class="card-body">
+                  <h5 class="card-title">Send to Individual Student</h5>
+                  <p class="card-text small text-muted">Send a report to a single student.</p>
+                  <form id="send-individual-report-form" class="d-flex gap-2">
+                    <input type="number" class="form-control" id="individual-student-id" placeholder="Student ID" required />
+                    <button type="submit" class="btn btn-info">Send</button>
+                  </form>
+                  <div id="individual-report-status" class="alert mt-3" style="display:none;"></div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card bg-light">
+                <div class="card-body">
+                  <h5 class="card-title">Send Week to Student</h5>
+                  <p class="card-text small text-muted">Send a specific week's report to a single student.</p>
+                  <form id="send-category-student-form" class="d-flex gap-2">
+                    <select class="form-select" id="category-student-select" required>
+                      <option value="">Select a week...</option>
+                    </select>
+                    <input type="number" class="form-control" id="category-student-id" placeholder="Student ID" required />
+                    <button type="submit" class="btn btn-info">Send</button>
+                  </form>
+                  <div id="category-student-report-status" class="alert mt-3" style="display:none;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <strong>Report History</strong>
+            </div>
+            <div class="card-body">
+              <div class="table-responsive">
+                <table class="table table-striped table-sm">
+                  <thead>
+                    <tr>
+                      <th>Student ID</th>
+                      <th>Student Name</th>
+                      <th>Sent Date</th>
+                      <th>Email Sent</th>
+                      <th>Marked Tasks</th>
+                      <th>Sent By</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reports-history-body">
+                    <tr>
+                      <td colspan="7" class="text-center text-muted">Loading...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
+    </div>
+
+    <!-- MARKING DEADLINES TAB -->
+    <div class="tab-pane fade" id="deadlines-section" role="tabpanel">
+      <div class="card mb-4">
+        <div class="card-header">
+          <strong>Set Marking Deadline</strong>
+        </div>
       <div class="card-body">
         <form id="set-deadline-form" class="form-inline">
           <div class="form-group mb-2 mr-3">
@@ -145,53 +269,111 @@
 
 {% block scripts %}
   <script>
-    const tutorError = document.getElementById("tutor-error");
-    const tutorsTableBody = document.getElementById("tutors-table-body");
-    const addTutorForm = document.getElementById("add-tutor-form");
-    const tutorUserIdInput = document.getElementById("tutor-user-id");
+    console.log("Script starting...");
+    
+    // ========== DECLARE ALL DOM ELEMENTS AT GLOBAL SCOPE ==========
+    let tutorError, tutorsTableBody, addTutorForm, tutorUserIdInput;
+    let assignmentError, assignmentsTableBody, assignStudentForm, studentUserIdInput, assignTutorIdInput;
+    let sendWeeklyBtn, sendWeeklyText, sendWeeklySpinner, sendWeeklyStatus;
+    let sendIndividualForm, individualStudentId, individualReportStatus, categoryReportStatus, reportsHistoryBody;
+    let categoryStudentForm, categoryStudentSelect, categoryStudentId, categoryStudentReportStatus;
+    let deadlineError, deadlinesTableBody, setDeadlineForm, deadlineChallengeIdInput, deadlineDueDateInput;
+    
+    try {
+      // ========== TUTOR MANAGEMENT ==========
+      tutorError = document.getElementById("tutor-error");
+      console.log("tutorError:", tutorError);
+      tutorsTableBody = document.getElementById("tutors-table-body");
+      console.log("tutorsTableBody:", tutorsTableBody);
+      addTutorForm = document.getElementById("add-tutor-form");
+      console.log("addTutorForm:", addTutorForm);
+      tutorUserIdInput = document.getElementById("tutor-user-id");
+      console.log("tutorUserIdInput:", tutorUserIdInput);
 
-    const assignmentError = document.getElementById("assignment-error");
-    const assignmentsTableBody = document.getElementById("assignments-table-body");
-    const assignStudentForm = document.getElementById("assign-student-form");
-    const studentUserIdInput = document.getElementById("student-user-id");
-    const assignTutorIdInput = document.getElementById("assign-tutor-id");
+      assignmentError = document.getElementById("assignment-error");
+      console.log("assignmentError:", assignmentError);
+      assignmentsTableBody = document.getElementById("assignments-table-body");
+      console.log("assignmentsTableBody:", assignmentsTableBody);
+      assignStudentForm = document.getElementById("assign-student-form");
+      console.log("assignStudentForm:", assignStudentForm);
+      studentUserIdInput = document.getElementById("student-user-id");
+      console.log("studentUserIdInput:", studentUserIdInput);
+      assignTutorIdInput = document.getElementById("assign-tutor-id");
+      console.log("assignTutorIdInput:", assignTutorIdInput);
 
-    const deadlineError = document.getElementById("deadline-error");
-    const deadlinesTableBody = document.getElementById("deadlines-table-body");
-    const setDeadlineForm = document.getElementById("set-deadline-form");
-    const deadlineChallengeIdInput = document.getElementById("deadline-challenge-id");
-    const deadlineDueDateInput = document.getElementById("deadline-due-date");
+      // ========== REPORTS MANAGEMENT ==========
+      sendWeeklyBtn = document.getElementById("send-weekly-reports-btn");
+      console.log("sendWeeklyBtn:", sendWeeklyBtn);
+      sendWeeklyText = document.getElementById("send-weekly-text");
+      console.log("sendWeeklyText:", sendWeeklyText);
+      sendWeeklySpinner = document.getElementById("send-weekly-spinner");
+      console.log("sendWeeklySpinner:", sendWeeklySpinner);
+      sendWeeklyStatus = document.getElementById("send-weekly-status");
+      console.log("sendWeeklyStatus:", sendWeeklyStatus);
+      sendIndividualForm = document.getElementById("send-individual-report-form");
+      console.log("sendIndividualForm:", sendIndividualForm);
+      individualStudentId = document.getElementById("individual-student-id");
+      console.log("individualStudentId:", individualStudentId);
+      individualReportStatus = document.getElementById("individual-report-status");
+      console.log("individualReportStatus:", individualReportStatus);
+      categoryReportStatus = document.getElementById("category-report-status");
+      console.log("categoryReportStatus:", categoryReportStatus);
+      categoryStudentForm = document.getElementById("send-category-student-form");
+      console.log("categoryStudentForm:", categoryStudentForm);
+      categoryStudentSelect = document.getElementById("category-student-select");
+      console.log("categoryStudentSelect:", categoryStudentSelect);
+      categoryStudentId = document.getElementById("category-student-id");
+      console.log("categoryStudentId:", categoryStudentId);
+      categoryStudentReportStatus = document.getElementById("category-student-report-status");
+      console.log("categoryStudentReportStatus:", categoryStudentReportStatus);
+      reportsHistoryBody = document.getElementById("reports-history-body");
+      console.log("reportsHistoryBody:", reportsHistoryBody);
 
-    const showError = (message) => {
-      tutorError.textContent = message;
-      tutorError.style.display = "block";
+      // ========== DEADLINES MANAGEMENT ==========
+      deadlineError = document.getElementById("deadline-error");
+      console.log("deadlineError:", deadlineError);
+      deadlinesTableBody = document.getElementById("deadlines-table-body");
+      console.log("deadlinesTableBody:", deadlinesTableBody);
+      setDeadlineForm = document.getElementById("set-deadline-form");
+      console.log("setDeadlineForm:", setDeadlineForm);
+      deadlineChallengeIdInput = document.getElementById("deadline-challenge-id");
+      console.log("deadlineChallengeIdInput:", deadlineChallengeIdInput);
+      deadlineDueDateInput = document.getElementById("deadline-due-date");
+      console.log("deadlineDueDateInput:", deadlineDueDateInput);
+      
+      console.log("All DOM elements loaded successfully");
+    } catch (e) {
+      console.error("Error loading DOM elements:", e);
+    }
+
+    // ========== ERROR HANDLERS ==========
+    const showError = (message, element = tutorError) => {
+      element.textContent = message;
+      element.style.display = "block";
+      element.className = "alert alert-danger";
     };
 
-    const clearError = () => {
-      tutorError.textContent = "";
-      tutorError.style.display = "none";
+    const clearError = (element = tutorError) => {
+      element.textContent = "";
+      element.style.display = "none";
     };
 
-    const showAssignmentError = (message) => {
-      assignmentError.textContent = message;
-      assignmentError.style.display = "block";
+    const showSuccess = (message, element) => {
+      element.textContent = message;
+      element.style.display = "block";
+      element.className = "alert alert-success";
+      setTimeout(() => {
+        element.style.display = "none";
+      }, 5000);
     };
 
-    const clearAssignmentError = () => {
-      assignmentError.textContent = "";
-      assignmentError.style.display = "none";
+    const showInfo = (message, element) => {
+      element.textContent = message;
+      element.style.display = "block";
+      element.className = "alert alert-info";
     };
 
-    const showDeadlineError = (message) => {
-      deadlineError.textContent = message;
-      deadlineError.style.display = "block";
-    };
-
-    const clearDeadlineError = () => {
-      deadlineError.textContent = "";
-      deadlineError.style.display = "none";
-    };
-
+    // ========== TUTOR FUNCTIONS ==========
     const renderTutors = (tutors) => {
       if (!Array.isArray(tutors) || tutors.length === 0) {
         tutorsTableBody.innerHTML = "<tr><td colspan=\"4\" class=\"text-center text-muted\">No tutors configured</td></tr>";
@@ -247,10 +429,11 @@
       deadlinesTableBody.innerHTML = "";
       deadlines.forEach((deadline) => {
         const row = document.createElement("tr");
+        const dueDate = new Date(deadline.dueDate).toLocaleString();
         row.innerHTML = `
           <td>${deadline.challengeId ?? ""}</td>
           <td>${deadline.challengeName ?? "N/A"}</td>
-          <td>${deadline.dueDate ?? "N/A"}</td>
+          <td>${dueDate}</td>
           <td>
             <button class="btn btn-sm btn-danger" data-challenge-id="${deadline.challengeId}">Remove</button>
           </td>
@@ -261,36 +444,67 @@
     };
 
     const loadTutors = async () => {
-      clearError();
-      const res = await fetch("/api/marking_hub/tutors", { credentials: "same-origin" });
-      if (!res.ok) {
-        showError("Failed to load tutors.");
-        return;
+      try {
+        console.log("loadTutors: Starting...");
+        clearError();
+        console.log("loadTutors: clearError() called");
+        const res = await fetch("/api/marking_hub/tutors", { credentials: "same-origin" });
+        console.log("loadTutors: fetch response status:", res.status);
+        if (!res.ok) {
+          console.error("loadTutors: Response not OK");
+          showError("Failed to load tutors.");
+          return;
+        }
+        const data = await res.json();
+        console.log("loadTutors: Got data:", data);
+        renderTutors(data);
+        console.log("loadTutors: Completed successfully");
+      } catch (err) {
+        console.error("loadTutors: Error:", err);
+        if (tutorError) showError("Error loading tutors: " + err.message);
       }
-      const data = await res.json();
-      renderTutors(data);
     };
 
     const loadAssignments = async () => {
-      clearAssignmentError();
-      const res = await fetch("/api/marking_hub/assignments", { credentials: "same-origin" });
-      if (!res.ok) {
-        showAssignmentError("Failed to load assignments.");
-        return;
+      try {
+        console.log("loadAssignments: Starting...");
+        clearError(assignmentError);
+        const res = await fetch("/api/marking_hub/assignments", { credentials: "same-origin" });
+        console.log("loadAssignments: fetch response status:", res.status);
+        if (!res.ok) {
+          console.error("loadAssignments: Response not OK");
+          showError("Failed to load assignments.", assignmentError);
+          return;
+        }
+        const data = await res.json();
+        console.log("loadAssignments: Got data:", data);
+        renderAssignments(data);
+        console.log("loadAssignments: Completed successfully");
+      } catch (err) {
+        console.error("loadAssignments: Error:", err);
+        if (assignmentError) showError("Error loading assignments: " + err.message, assignmentError);
       }
-      const data = await res.json();
-      renderAssignments(data);
     };
 
     const loadDeadlines = async () => {
-      clearDeadlineError();
-      const res = await fetch("/api/marking_hub/deadlines", { credentials: "same-origin" });
-      if (!res.ok) {
-        showDeadlineError("Failed to load deadlines.");
-        return;
+      try {
+        console.log("loadDeadlines: Starting...");
+        clearError(deadlineError);
+        const res = await fetch("/api/marking_hub/deadlines", { credentials: "same-origin" });
+        console.log("loadDeadlines: fetch response status:", res.status);
+        if (!res.ok) {
+          console.error("loadDeadlines: Response not OK");
+          showError("Failed to load deadlines.", deadlineError);
+          return;
+        }
+        const data = await res.json();
+        console.log("loadDeadlines: Got data:", data);
+        renderDeadlines(data);
+        console.log("loadDeadlines: Completed successfully");
+      } catch (err) {
+        console.error("loadDeadlines: Error:", err);
+        if (deadlineError) showError("Error loading deadlines: " + err.message, deadlineError);
       }
-      const data = await res.json();
-      renderDeadlines(data);
     };
 
     const addTutor = async (userId) => {
@@ -329,7 +543,7 @@
     };
 
     const assignStudent = async (studentId, tutorId) => {
-      clearAssignmentError();
+      clearError(assignmentError);
       const res = await fetch(`/api/marking_hub/assignments/${studentId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -339,7 +553,7 @@
 
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
-        showAssignmentError(payload.message || "Failed to assign student.");
+        showError(payload.message || "Failed to assign student.", assignmentError);
         return;
       }
 
@@ -349,7 +563,7 @@
     };
 
     const removeAssignment = async (userId) => {
-      clearAssignmentError();
+      clearError(assignmentError);
       const res = await fetch(`/api/marking_hub/assignments/${userId}`, {
         method: "DELETE",
         credentials: "same-origin",
@@ -357,7 +571,7 @@
 
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
-        showAssignmentError(payload.message || "Failed to remove assignment.");
+        showError(payload.message || "Failed to remove assignment.", assignmentError);
         return;
       }
 
@@ -365,7 +579,7 @@
     };
 
     const setDeadline = async (challengeId, dueDate) => {
-      clearDeadlineError();
+      clearError(deadlineError);
       const res = await fetch(`/api/marking_hub/deadlines/${challengeId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -375,7 +589,7 @@
 
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
-        showDeadlineError(payload.message || "Failed to set deadline.");
+        showError(payload.message || "Failed to set deadline.", deadlineError);
         return;
       }
 
@@ -385,7 +599,7 @@
     };
 
     const removeDeadline = async (challengeId) => {
-      clearDeadlineError();
+      clearError(deadlineError);
       const res = await fetch(`/api/marking_hub/deadlines/${challengeId}`, {
         method: "DELETE",
         credentials: "same-origin",
@@ -393,47 +607,393 @@
 
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
-        showDeadlineError(payload.message || "Failed to remove deadline.");
+        showError(payload.message || "Failed to remove deadline.", deadlineError);
         return;
       }
 
       await loadDeadlines();
     };
 
-    addTutorForm.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const userId = tutorUserIdInput.value.trim();
-      if (!userId) {
-        showError("User ID is required.");
+    // ========== REPORTS FUNCTIONS ==========
+    const renderReportHistory = (reports) => {
+      if (!Array.isArray(reports) || reports.length === 0) {
+        reportsHistoryBody.innerHTML = "<tr><td colspan=\"7\" class=\"text-center text-muted\">No reports sent yet</td></tr>";
         return;
       }
-      addTutor(userId);
-    });
 
-    assignStudentForm.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const studentId = studentUserIdInput.value.trim();
-      const tutorId = assignTutorIdInput.value.trim();
-      if (!studentId || !tutorId) {
-        showAssignmentError("Both Student ID and Tutor ID are required.");
+      reportsHistoryBody.innerHTML = "";
+      reports.forEach((report) => {
+        const sentDate = new Date(report.sent_at).toLocaleString();
+        const emailSent = report.email_sent ? '<span class="badge bg-success">Yes</span>' : '<span class="badge bg-warning">No</span>';
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${report.user_id}</td>
+          <td>${report.user_name || "N/A"}</td>
+          <td>${sentDate}</td>
+          <td>${emailSent}</td>
+          <td>${report.submission_count || 0}</td>
+          <td>${report.sent_by_name || "System"}</td>
+          <td>
+            <a href="/api/marking_hub/reports/download/${report.user_id}" class="btn btn-sm btn-primary" title="Download PDF">PDF</a>
+          </td>
+        `;
+        reportsHistoryBody.appendChild(row);
+      });
+    };
+
+    const loadReportHistory = async () => {
+      try {
+        console.log("loadReportHistory: Starting...");
+        if (!reportsHistoryBody) {
+          console.warn("reportsHistoryBody not found!");
+          return;
+        }
+        const res = await fetch("/api/marking_hub/reports", { credentials: "same-origin" });
+        console.log("loadReportHistory: fetch response status:", res.status);
+        if (!res.ok) {
+          console.error("loadReportHistory: Response not OK");
+          reportsHistoryBody.innerHTML = "<tr><td colspan=\"7\" class=\"text-center text-danger\">Failed to load report history</td></tr>";
+          return;
+        }
+        const data = await res.json();
+        console.log("loadReportHistory: Got data:", data);
+        renderReportHistory(data.data || data);
+        console.log("loadReportHistory: Completed successfully");
+      } catch (err) {
+        console.error("loadReportHistory: Error:", err);
+        if (reportsHistoryBody) {
+          reportsHistoryBody.innerHTML = "<tr><td colspan=\"7\" class=\"text-center text-danger\">Error: " + err.message + "</td></tr>";
+        }
+      }
+    };
+
+    const sendWeeklyReports = async () => {
+      sendWeeklyBtn.disabled = true;
+      sendWeeklyText.style.display = "none";
+      sendWeeklySpinner.style.display = "inline-block";
+      clearError(sendWeeklyStatus);
+
+      try {
+        const res = await fetch("/api/marking_hub/reports/send-weekly", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+        });
+
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({}));
+          showError(payload.message || "Failed to send reports.", sendWeeklyStatus);
+        } else {
+          const result = await res.json();
+          console.log("Send weekly reports response:", result);
+          const sentCount = result.details?.sent || 0;
+          showSuccess(`Reports sent successfully! (${sentCount} students)`, sendWeeklyStatus);
+          await loadReportHistory();
+        }
+      } catch (err) {
+        console.error("Error:", err);
+        showError("Network error: " + err.message, sendWeeklyStatus);
+      } finally {
+        sendWeeklyBtn.disabled = false;
+        sendWeeklyText.style.display = "inline";
+        sendWeeklySpinner.style.display = "none";
+      }
+    };
+
+    const sendIndividualReport = async (studentId) => {
+      clearError(individualReportStatus);
+      
+      if (!studentId) {
+        showError("Student ID is required.", individualReportStatus);
         return;
       }
-      assignStudent(studentId, tutorId);
-    });
 
-    setDeadlineForm.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const challengeId = deadlineChallengeIdInput.value.trim();
-      const dueDate = deadlineDueDateInput.value.trim();
-      if (!challengeId || !dueDate) {
-        showDeadlineError("Both Challenge ID and Due Date are required.");
+      showInfo("Sending report...", individualReportStatus);
+
+      try {
+        const res = await fetch(`/api/marking_hub/reports/send/${studentId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+        });
+
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({}));
+          showError(payload.message || "Failed to send report.", individualReportStatus);
+        } else {
+          const result = await res.json();
+          console.log("Send individual report response:", result);
+          showSuccess("Report sent successfully!", individualReportStatus);
+          individualStudentId.value = "";
+          await loadReportHistory();
+        }
+      } catch (err) {
+        console.error("Error:", err);
+        showError("Network error: " + err.message, individualReportStatus);
+      }
+    };
+
+    const loadCategories = async () => {
+      try {
+        console.log("loadCategories: Starting...");
+        const categorySelect = document.getElementById("category-select");
+        if (!categorySelect) {
+          console.warn("categorySelect not found!");
+          return;
+        }
+        const res = await fetch("/api/marking_hub/categories", { credentials: "same-origin" });
+        console.log("loadCategories: fetch response status:", res.status);
+        if (!res.ok) {
+          console.error("loadCategories: Response not OK");
+          return;
+        }
+
+        const data = await res.json();
+        console.log("loadCategories: Got data:", data);
+        if (data.success && data.categories) {
+          categorySelect.innerHTML = '<option value="">Select a week...</option>';
+          
+          // Also populate the category-student select if it exists
+          if (categoryStudentSelect) {
+            categoryStudentSelect.innerHTML = '<option value="">Select a week...</option>';
+          }
+          
+          data.categories.forEach((category) => {
+            const option = document.createElement("option");
+            option.value = category;
+            option.textContent = category;
+            categorySelect.appendChild(option);
+            
+            // Also add to category-student select
+            if (categoryStudentSelect) {
+              const option2 = document.createElement("option");
+              option2.value = category;
+              option2.textContent = category;
+              categoryStudentSelect.appendChild(option2);
+            }
+          });
+          console.log("loadCategories: Categories loaded:", data.categories);
+        }
+      } catch (err) {
+        console.error("loadCategories: Error:", err);
+      }
+    };
+
+    const sendCategoryReports = async (category) => {
+      clearError(categoryReportStatus);
+      
+      if (!category) {
+        showError("Please select a week.", categoryReportStatus);
         return;
       }
-      setDeadline(challengeId, dueDate);
-    });
 
-    loadTutors();
-    loadAssignments();
-    loadDeadlines();
+      showInfo(`Sending reports for ${category}...`, categoryReportStatus);
+
+      try {
+        const res = await fetch(`/api/marking_hub/reports/send-by-category/${encodeURIComponent(category)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+        });
+
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({}));
+          showError(payload.message || "Failed to send reports.", categoryReportStatus);
+        } else {
+          const result = await res.json();
+          console.log("Send category reports response:", result);
+          const sentCount = result.details?.sent || 0;
+          showSuccess(`Reports for ${category} sent successfully! (${sentCount} students)`, categoryReportStatus);
+          await loadReportHistory();
+        }
+      } catch (err) {
+        console.error("Error:", err);
+        showError("Network error: " + err.message, categoryReportStatus);
+      }
+    };
+
+    const sendCategoryReportToStudent = async (category, studentId) => {
+      clearError(categoryStudentReportStatus);
+      
+      if (!category) {
+        showError("Please select a week.", categoryStudentReportStatus);
+        return;
+      }
+
+      if (!studentId) {
+        showError("Student ID is required.", categoryStudentReportStatus);
+        return;
+      }
+
+      showInfo(`Sending ${category} report to student ${studentId}...`, categoryStudentReportStatus);
+
+      try {
+        const res = await fetch(`/api/marking_hub/reports/send/${studentId}?category=${encodeURIComponent(category)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+        });
+
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({}));
+          showError(payload.message || "Failed to send report.", categoryStudentReportStatus);
+        } else {
+          const result = await res.json();
+          console.log("Send category report to student response:", result);
+          showSuccess(`Report for ${category} sent to student ${studentId} successfully!`, categoryStudentReportStatus);
+          categoryStudentId.value = "";
+          categoryStudentSelect.value = "";
+          await loadReportHistory();
+        }
+      } catch (err) {
+        console.error("Error:", err);
+        showError("Network error: " + err.message, categoryStudentReportStatus);
+      }
+    };
+
+    // ========== EVENT LISTENERS ==========
+    try {
+      console.log("Attaching event listeners...");
+      
+      if (addTutorForm) {
+        addTutorForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const userId = tutorUserIdInput.value.trim();
+          if (!userId) {
+            showError("User ID is required.");
+            return;
+          }
+          addTutor(userId);
+        });
+      }
+
+      if (assignStudentForm) {
+        assignStudentForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const studentId = studentUserIdInput.value.trim();
+          const tutorId = assignTutorIdInput.value.trim();
+          if (!studentId || !tutorId) {
+            showError("Both Student ID and Tutor ID are required.", assignmentError);
+            return;
+          }
+          assignStudent(studentId, tutorId);
+        });
+      }
+
+      if (setDeadlineForm) {
+        setDeadlineForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const challengeId = deadlineChallengeIdInput.value.trim();
+          const dueDate = deadlineDueDateInput.value.trim();
+          if (!challengeId || !dueDate) {
+            showError("Both Challenge ID and Due Date are required.", deadlineError);
+            return;
+          }
+          setDeadline(challengeId, dueDate);
+        });
+      }
+
+      if (sendWeeklyBtn) {
+        sendWeeklyBtn.addEventListener("click", sendWeeklyReports);
+        console.log("sendWeeklyBtn listener attached");
+      } else {
+        console.warn("sendWeeklyBtn not found!");
+      }
+
+      if (sendIndividualForm) {
+        sendIndividualForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const studentId = individualStudentId.value.trim();
+          sendIndividualReport(studentId);
+        });
+      }
+
+      const sendCategoryForm = document.getElementById("send-category-reports-form");
+      if (sendCategoryForm) {
+        sendCategoryForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const category = document.getElementById("category-select").value;
+          sendCategoryReports(category);
+        });
+      }
+
+      if (categoryStudentForm) {
+        categoryStudentForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const category = categoryStudentSelect.value.trim();
+          const studentId = categoryStudentId.value.trim();
+          sendCategoryReportToStudent(category, studentId);
+        });
+      }
+
+      console.log("Event listeners attached successfully");
+    } catch (e) {
+      console.error("Error attaching event listeners:", e);
+    }
+
+    // ========== BOOTSTRAP TABS INITIALIZATION ==========
+    const initTabs = () => {
+      console.log("Initializing Bootstrap tabs...");
+      
+      const tutorTab = document.getElementById("tutor-tab");
+      const reportsTab = document.getElementById("reports-tab");
+      const deadlinesTab = document.getElementById("deadlines-tab");
+      
+      const tutorSection = document.getElementById("tutor-section");
+      const reportsSection = document.getElementById("reports-section");
+      const deadlinesSection = document.getElementById("deadlines-section");
+      
+      const showTab = (tabId) => {
+        console.log("Switching to tab:", tabId);
+        
+        // Hide all panes
+        [tutorSection, reportsSection, deadlinesSection].forEach(pane => {
+          if (pane) {
+            pane.classList.remove("show", "active");
+          }
+        });
+        
+        // Remove active from all tabs
+        [tutorTab, reportsTab, deadlinesTab].forEach(tab => {
+          if (tab) {
+            tab.classList.remove("active");
+          }
+        });
+        
+        // Show selected pane and tab
+        if (tabId === "tutor-tab" && tutorTab && tutorSection) {
+          tutorTab.classList.add("active");
+          tutorSection.classList.add("show", "active");
+        } else if (tabId === "reports-tab" && reportsTab && reportsSection) {
+          reportsTab.classList.add("active");
+          reportsSection.classList.add("show", "active");
+        } else if (tabId === "deadlines-tab" && deadlinesTab && deadlinesSection) {
+          deadlinesTab.classList.add("active");
+          deadlinesSection.classList.add("show", "active");
+        }
+      };
+      
+      if (tutorTab) tutorTab.addEventListener("click", (e) => { e.preventDefault(); showTab("tutor-tab"); });
+      if (reportsTab) reportsTab.addEventListener("click", (e) => { e.preventDefault(); showTab("reports-tab"); });
+      if (deadlinesTab) deadlinesTab.addEventListener("click", (e) => { e.preventDefault(); showTab("deadlines-tab"); });
+      
+      console.log("Bootstrap tabs initialized successfully");
+    };
+    
+    // Initialize tabs after a small delay to ensure DOM is ready
+    setTimeout(initTabs, 100);
+
+    // ========== LOAD DATA ON PAGE LOAD ==========
+    try {
+      console.log("Loading initial data...");
+      loadTutors();
+      loadAssignments();
+      loadDeadlines();
+      loadReportHistory();
+      loadCategories();
+      console.log("Initial data load started");
+    } catch (e) {
+      console.error("Error loading initial data:", e);
+    }
   </script>
 {% endblock %}
