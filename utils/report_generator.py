@@ -35,7 +35,7 @@ def get_student_submissions_for_report(user_id, category=None):
         MarkingSubmission.query
         .join(Submissions, MarkingSubmission.submission_id == Submissions.id)
         .join(Challenges, Submissions.challenge_id == Challenges.id)
-        .filter(Submissions.user_id == user_id, MarkingSubmission.mark.isnot(None))
+        .filter(Submissions.user_id == user_id)
     )
     
     if category:
@@ -47,13 +47,26 @@ def get_student_submissions_for_report(user_id, category=None):
     for marking_sub in marking_subs:
         sub = marking_sub.submission
         challenge = sub.challenge
+        challenge_name = challenge.name if challenge else "Unknown"
+        stripped_name = challenge_name.lstrip()
+        is_technical = stripped_name.upper().startswith("TECH")
+
+        if not is_technical and marking_sub.mark is None:
+            continue
+
+        display_name = challenge_name
+        if is_technical:
+            remainder = stripped_name[4:].lstrip(" :-_")
+            display_name = remainder or challenge_name
         
         report_data.append({
-            'challenge': challenge.name if challenge else 'Unknown',
+            'challenge': display_name,
             'submitted_at': sub.date.strftime("%Y-%m-%d %H:%M") if sub.date else 'N/A',
             'flag': sub.provided or '',
             'mark': marking_sub.mark,
+            'challengeValue': challenge.value if challenge else 100,  # Max points for the challenge
             'comment': marking_sub.comment or '',
+            'is_technical': is_technical,
         })
     
     return sorted(report_data, key=lambda x: x['submitted_at'])
@@ -110,7 +123,16 @@ Submissions Reviewed: {len(submissions)}
 Marked: {sum(1 for s in submissions if s['mark'] is not None)}
 
 Summary:
-{chr(10).join(f"- {s['challenge']}: {s['mark']}%" if s['mark'] is not None else f"- {s['challenge']}: Not yet marked" for s in submissions[:5])}
+"""
+        for s in submissions[:10]:
+            mark = s['mark']
+            if mark is not None:
+                percentage = (mark / s.get('challengeValue', 100)) * 100
+                email_text += f"\n- {s['challenge']}: {mark}/{s.get('challengeValue', 100)} ({percentage:.1f}%)"
+            else:
+                email_text += f"\n- {s['challenge']}: Not yet marked"
+        
+        email_text += f"""
 
 For full details and feedback, please see the attached PDF or log in to the marking dashboard.
 

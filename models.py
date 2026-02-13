@@ -113,6 +113,8 @@ class MarkingSubmission(db.Model):
         user = sub.user
         challenge = sub.challenge
         assignment = MarkingAssignment.query.filter_by(user_id=sub.user_id).first()
+        challenge_name = challenge.name if challenge else ""
+        is_technical = challenge_name.lstrip().upper().startswith("TECH")
 
         return {
             "id": self.id,
@@ -128,6 +130,8 @@ class MarkingSubmission(db.Model):
             "challengeHtml": challenge.html if challenge else None,
             "challengeConnectionInfo": challenge.connection_info if challenge else None,
             "category": challenge.category if challenge else "Uncategorized",
+            "challengeValue": challenge.value if challenge else 100,  # Max points for this challenge
+            "isTechnical": is_technical,
             "mark": self.mark,
             "comment": self.comment,
             "markedAt": self.marked_at.strftime("%Y-%m-%d %H:%M:%S") if self.marked_at else None,

@@ -16,6 +16,9 @@
       <li class="nav-item" role="presentation">
         <button class="nav-link" id="deadlines-tab" data-bs-toggle="tab" data-bs-target="#deadlines-section" type="button" role="tab">Marking Deadlines</button>
       </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="statistics-tab" data-bs-toggle="tab" data-bs-target="#statistics-section" type="button" role="tab">Marking Statistics</button>
+      </li>
     </ul>
 
     <!-- Tab Content -->
@@ -264,7 +267,136 @@
         </div>
       </div>
     </div>
-  </div>
+
+    </div>
+
+    <!-- MARKING STATISTICS TAB -->
+    <div class="tab-pane fade" id="statistics-section" role="tabpanel">
+      <div class="card mb-4">
+        <div class="card-header">
+          <strong>Marking Progress Overview</strong>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-3">
+              <div class="alert alert-info">
+                <h6>Total Submitted</h6>
+                <h3 id="stat-total-submitted">-</h3>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="alert alert-success">
+                <h6>Total Marked</h6>
+                <h3 id="stat-total-marked">-</h3>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="alert alert-warning">
+                <h6>Marking %</h6>
+                <h3 id="stat-marking-percentage">-</h3>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="alert alert-secondary">
+                <h6>Avg Mark</h6>
+                <h3 id="stat-avg-mark">-</h3>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <strong>Tutor Marking Patterns</strong>
+          <button id="refresh-stats-btn" class="btn btn-sm btn-outline-secondary float-end">⟲ Refresh</button>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th>Tutor Name</th>
+                  <th>Email</th>
+                  <th>Submissions Marked</th>
+                  <th>Average Mark</th>
+                  <th>Std Dev</th>
+                  <th>Last Marked</th>
+                </tr>
+              </thead>
+              <tbody id="statistics-table-body">
+                <tr>
+                  <td colspan="6" class="text-center text-muted">Loading...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <strong>Marking Statistics by Category</strong>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th>Total Submitted</th>
+                  <th>Total Marked</th>
+                  <th>Marking %</th>
+                  <th>Average Mark</th>
+                </tr>
+              </thead>
+              <tbody id="category-stats-table-body">
+                <tr>
+                  <td colspan="5" class="text-center text-muted">Loading...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Exercise Statistics Modal -->
+    <div class="modal fade" id="exerciseStatsModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Exercise Statistics - <span id="modalCategoryTitle"></span></h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="table-responsive">
+              <table class="table table-striped">
+                <thead>
+                  <tr>
+                    <th>Exercise Name</th>
+                    <th>Total Submitted</th>
+                    <th>Total Marked</th>
+                    <th>Marking %</th>
+                    <th>Average Mark</th>
+                  </tr>
+                </thead>
+                <tbody id="exerciseStatsTableBody">
+                  <tr>
+                    <td colspan="5" class="text-center text-muted">Loading...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -278,6 +410,8 @@
     let sendIndividualForm, individualStudentId, individualReportStatus, categoryReportStatus, reportsHistoryBody;
     let categoryStudentForm, categoryStudentSelect, categoryStudentId, categoryStudentReportStatus;
     let deadlineError, deadlinesTableBody, setDeadlineForm, deadlineChallengeIdInput, deadlineDueDateInput;
+    let statisticsTableBody, refreshStatsBtn, statTotalSubmitted, statTotalMarked, statMarkingPercentage, statAvgMark;
+    let categoryStatsTableBody, exerciseStatsTableBody, exerciseStatsModal, modalCategoryTitle;
     
     try {
       // ========== TUTOR MANAGEMENT ==========
@@ -340,8 +474,73 @@
       console.log("deadlineChallengeIdInput:", deadlineChallengeIdInput);
       deadlineDueDateInput = document.getElementById("deadline-due-date");
       console.log("deadlineDueDateInput:", deadlineDueDateInput);
+
+      // ========== STATISTICS ==========
+      statisticsTableBody = document.getElementById("statistics-table-body");
+      console.log("statisticsTableBody:", statisticsTableBody);
+      refreshStatsBtn = document.getElementById("refresh-stats-btn");
+      console.log("refreshStatsBtn:", refreshStatsBtn);
+      statTotalSubmitted = document.getElementById("stat-total-submitted");
+      console.log("statTotalSubmitted:", statTotalSubmitted);
+      statTotalMarked = document.getElementById("stat-total-marked");
+      console.log("statTotalMarked:", statTotalMarked);
+      statMarkingPercentage = document.getElementById("stat-marking-percentage");
+      console.log("statMarkingPercentage:", statMarkingPercentage);
+      statAvgMark = document.getElementById("stat-avg-mark");
+      console.log("statAvgMark:", statAvgMark);
+      categoryStatsTableBody = document.getElementById("category-stats-table-body");
+      console.log("categoryStatsTableBody:", categoryStatsTableBody);
+      exerciseStatsTableBody = document.getElementById("exerciseStatsTableBody");
+      console.log("exerciseStatsTableBody:", exerciseStatsTableBody);
+      exerciseStatsModal = document.getElementById("exerciseStatsModal");
+      console.log("exerciseStatsModal:", exerciseStatsModal);
+      modalCategoryTitle = document.getElementById("modalCategoryTitle");
+      console.log("modalCategoryTitle:", modalCategoryTitle);
       
       console.log("All DOM elements loaded successfully");
+      
+      // Attach close button handlers for modal
+      const modalCloseButton = document.querySelector("#exerciseStatsModal .btn-close");
+      const modalCloseFooterButton = document.querySelector("#exerciseStatsModal .modal-footer .btn-secondary");
+      
+      console.log("Modal close button:", modalCloseButton);
+      console.log("Modal footer close button:", modalCloseFooterButton);
+      
+      if (modalCloseButton) {
+        modalCloseButton.addEventListener("click", function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log("Close button (X) clicked");
+          closeExerciseStatsModal();
+        });
+      }
+      
+      if (modalCloseFooterButton) {
+        modalCloseFooterButton.addEventListener("click", function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log("Close button (footer) clicked");
+          closeExerciseStatsModal();
+        });
+      }
+      
+      // Close modal when clicking outside (backdrop)
+      if (exerciseStatsModal) {
+        exerciseStatsModal.addEventListener("click", function(e) {
+          if (e.target === exerciseStatsModal) {
+            console.log("Clicked on backdrop, closing modal");
+            closeExerciseStatsModal();
+          }
+        });
+      }
+      
+      // Close modal on Escape key
+      document.addEventListener("keydown", function(e) {
+        if (e.key === "Escape" && exerciseStatsModal && exerciseStatsModal.style.display === 'block') {
+          console.log("Escape key pressed, closing modal");
+          closeExerciseStatsModal();
+        }
+      });
     } catch (e) {
       console.error("Error loading DOM elements:", e);
     }
@@ -356,6 +555,14 @@
     const clearError = (element = tutorError) => {
       element.textContent = "";
       element.style.display = "none";
+    };
+
+    // ========== UTILITY FUNCTIONS ==========
+    const escapeHtml = (text) => {
+      if (!text) return "";
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
     };
 
     const showSuccess = (message, element) => {
@@ -504,6 +711,243 @@
       } catch (err) {
         console.error("loadDeadlines: Error:", err);
         if (deadlineError) showError("Error loading deadlines: " + err.message, deadlineError);
+      }
+    };
+
+    const loadStatistics = async () => {
+      try {
+        console.log("loadStatistics: Starting...");
+        const res = await fetch("/api/marking_hub/statistics/tutors", { credentials: "same-origin" });
+        console.log("loadStatistics: fetch response status:", res.status);
+        if (!res.ok) {
+          console.error("loadStatistics: Response not OK");
+          return;
+        }
+        const data = await res.json();
+        console.log("loadStatistics: Got data:", data);
+        
+        // Update global stats
+        if (data.global) {
+          statTotalSubmitted.textContent = data.global.total_submitted;
+          statTotalMarked.textContent = data.global.total_marked;
+          statMarkingPercentage.textContent = data.global.marking_percentage + "%";
+          statAvgMark.textContent = data.global.avg_mark_overall.toFixed(1) + "%";
+        }
+        
+        // Render tutor stats table
+        renderStatistics(data.tutors || []);
+        console.log("loadStatistics: Completed successfully");
+      } catch (err) {
+        console.error("loadStatistics: Error:", err);
+      }
+    };
+
+    const renderStatistics = (tutors) => {
+      if (!tutors || tutors.length === 0) {
+        statisticsTableBody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">No tutor data available</td></tr>`;
+        return;
+      }
+      
+      statisticsTableBody.innerHTML = tutors.map(tutor => `
+        <tr>
+          <td>${escapeHtml(tutor.name)}</td>
+          <td>${escapeHtml(tutor.email)}</td>
+          <td><strong>${tutor.submissions_marked}</strong></td>
+          <td>${tutor.avg_mark.toFixed(1)}%</td>
+          <td>${tutor.std_dev}</td>
+          <td>${tutor.last_marked || 'Never'}</td>
+        </tr>
+      `).join("");
+    };
+
+    const loadCategoryStatistics = async () => {
+      try {
+        console.log("loadCategoryStatistics: Starting...");
+        const res = await fetch("/api/marking_hub/statistics/categories", { credentials: "same-origin" });
+        console.log("loadCategoryStatistics: fetch response status:", res.status);
+        if (!res.ok) {
+          console.error("loadCategoryStatistics: Response not OK");
+          return;
+        }
+        const data = await res.json();
+        console.log("loadCategoryStatistics: Got data:", data);
+        
+        // Render category stats table
+        renderCategoryStatistics(data.categories || []);
+        console.log("loadCategoryStatistics: Completed successfully");
+      } catch (err) {
+        console.error("loadCategoryStatistics: Error:", err);
+      }
+    };
+
+    const renderCategoryStatistics = (categories) => {
+      if (!categories || categories.length === 0) {
+        categoryStatsTableBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">No category data available</td></tr>`;
+        return;
+      }
+      
+      categoryStatsTableBody.innerHTML = categories.map(cat => `
+        <tr style="cursor: pointer;" class="category-stats-row" data-category="${escapeHtml(cat.category)}">
+          <td>${escapeHtml(cat.category)}</td>
+          <td><strong>${cat.total_submitted}</strong></td>
+          <td><strong>${cat.total_marked}</strong></td>
+          <td>${cat.marking_percentage}%</td>
+          <td>${cat.avg_mark.toFixed(1)}%</td>
+        </tr>
+      `).join("");
+      
+      // Attach event listeners to each row
+      document.querySelectorAll(".category-stats-row").forEach(row => {
+        row.addEventListener("click", function() {
+          const category = this.getAttribute("data-category");
+          loadExerciseStatistics(category);
+        });
+      });
+    };
+
+    const loadExerciseStatistics = async (category) => {
+      try {
+        console.log("loadExerciseStatistics called with category:", category);
+        console.log("exerciseStatsModal:", exerciseStatsModal);
+        console.log("modalCategoryTitle:", modalCategoryTitle);
+        
+        const res = await fetch(`/api/marking_hub/statistics/category/${encodeURIComponent(category)}/exercises`);
+        console.log("Fetch response status:", res.status);
+        
+        if (!res.ok) {
+          console.error("Failed to load exercise statistics:", res.statusText);
+          return;
+        }
+        
+        const data = await res.json();
+        console.log("Exercise data received:", data);
+        
+        renderExerciseStatistics(data.exercises || []);
+        console.log("Exercises rendered");
+        
+        modalCategoryTitle.textContent = `${escapeHtml(category)} - Exercise Breakdown`;
+        console.log("Modal title set to:", modalCategoryTitle.textContent);
+        
+        // Try to show the modal with Bootstrap
+        try {
+          console.log("Attempting to show modal with Bootstrap...");
+          // Check multiple ways Bootstrap might be available
+          const BootstrapModal = window.bootstrap?.Modal || (typeof bootstrap !== 'undefined' && bootstrap.Modal);
+          
+          if (!BootstrapModal) {
+            console.error("Bootstrap Modal not available, trying alternative method...");
+            // Fallback: directly manipulate DOM
+            exerciseStatsModal.classList.add('show');
+            exerciseStatsModal.style.display = 'block';
+            exerciseStatsModal.setAttribute('aria-modal', 'true');
+            // Add backdrop
+            let backdrop = document.querySelector('.modal-backdrop');
+            if (!backdrop) {
+              backdrop = document.createElement('div');
+              backdrop.classList.add('modal-backdrop', 'fade', 'show');
+              document.body.appendChild(backdrop);
+            }
+            document.body.classList.add('modal-open');
+            return;
+          }
+          
+          const modal = new BootstrapModal(exerciseStatsModal, {
+            backdrop: 'static',
+            keyboard: true
+          });
+          console.log("Modal instance created:", modal);
+          modal.show();
+          console.log("Modal shown");
+        } catch (bootstrapErr) {
+          console.error("Bootstrap error:", bootstrapErr);
+          // Fallback: directly manipulate DOM
+          exerciseStatsModal.classList.add('show');
+          exerciseStatsModal.style.display = 'block';
+          exerciseStatsModal.setAttribute('aria-modal', 'true');
+          // Add backdrop
+          let backdrop = document.querySelector('.modal-backdrop');
+          if (!backdrop) {
+            backdrop = document.createElement('div');
+            backdrop.classList.add('modal-backdrop', 'fade', 'show');
+            document.body.appendChild(backdrop);
+          }
+          document.body.classList.add('modal-open');
+        }
+      } catch (err) {
+        console.error("Error loading exercise stats:", err);
+        console.error("Stack trace:", err.stack);
+      }
+    };
+
+    const renderExerciseStatistics = (exercises) => {
+      if (!exercises || exercises.length === 0) {
+        exerciseStatsTableBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">No exercises in this category</td></tr>`;
+        return;
+      }
+      
+      let html = '';
+      exercises.forEach(ex => {
+        // Main exercise row
+        html += `
+          <tr style="font-weight: bold; background-color: #f8f9fa;">
+            <td>${escapeHtml(ex.challenge_name)}</td>
+            <td><strong>${ex.total_submitted}</strong></td>
+            <td><strong>${ex.total_marked}</strong></td>
+            <td>${ex.marking_percentage.toFixed(1)}%</td>
+            <td>${ex.avg_mark.toFixed(1)}%</td>
+          </tr>
+        `;
+        
+        // Per-tutor breakdown rows
+        if (ex.per_tutor && ex.per_tutor.length > 0) {
+          ex.per_tutor.forEach(tutor => {
+            html += `
+              <tr style="font-size: 0.9rem; color: #666; border-left: 3px solid #e9ecef; padding-left: 10px;">
+                <td style="padding-left: 30px;">└ ${escapeHtml(tutor.tutor_name)}</td>
+                <td>-</td>
+                <td>${tutor.marked_count}</td>
+                <td>-</td>
+                <td>${tutor.avg_mark.toFixed(1)}%</td>
+              </tr>
+            `;
+          });
+        }
+      });
+      
+      exerciseStatsTableBody.innerHTML = html;
+    };
+
+    const closeExerciseStatsModal = () => {
+      try {
+        console.log("closeExerciseStatsModal called");
+        if (exerciseStatsModal) {
+          // Try Bootstrap close first
+          try {
+            const BootstrapModal = window.bootstrap?.Modal || (typeof bootstrap !== 'undefined' && bootstrap.Modal);
+            if (BootstrapModal) {
+              const instance = BootstrapModal.getInstance(exerciseStatsModal);
+              if (instance) {
+                instance.hide();
+                console.log("Closed via Bootstrap");
+                return;
+              }
+            }
+          } catch (e) {
+            console.log("Bootstrap close failed, using fallback");
+          }
+          
+          // Fallback DOM manipulation
+          exerciseStatsModal.classList.remove('show');
+          exerciseStatsModal.style.display = 'none';
+          exerciseStatsModal.removeAttribute('aria-modal');
+          exerciseStatsModal.setAttribute('aria-hidden', 'true');
+          const backdrop = document.querySelector('.modal-backdrop');
+          if (backdrop) backdrop.remove();
+          document.body.classList.remove('modal-open');
+          console.log("Closed via DOM fallback");
+        }
+      } catch (e) {
+        console.error("Error closing modal:", e);
       }
     };
 
@@ -938,23 +1382,25 @@
       const tutorTab = document.getElementById("tutor-tab");
       const reportsTab = document.getElementById("reports-tab");
       const deadlinesTab = document.getElementById("deadlines-tab");
+      const statisticsTab = document.getElementById("statistics-tab");
       
       const tutorSection = document.getElementById("tutor-section");
       const reportsSection = document.getElementById("reports-section");
       const deadlinesSection = document.getElementById("deadlines-section");
+      const statisticsSection = document.getElementById("statistics-section");
       
       const showTab = (tabId) => {
         console.log("Switching to tab:", tabId);
         
         // Hide all panes
-        [tutorSection, reportsSection, deadlinesSection].forEach(pane => {
+        [tutorSection, reportsSection, deadlinesSection, statisticsSection].forEach(pane => {
           if (pane) {
             pane.classList.remove("show", "active");
           }
         });
         
         // Remove active from all tabs
-        [tutorTab, reportsTab, deadlinesTab].forEach(tab => {
+        [tutorTab, reportsTab, deadlinesTab, statisticsTab].forEach(tab => {
           if (tab) {
             tab.classList.remove("active");
           }
@@ -970,12 +1416,18 @@
         } else if (tabId === "deadlines-tab" && deadlinesTab && deadlinesSection) {
           deadlinesTab.classList.add("active");
           deadlinesSection.classList.add("show", "active");
+        } else if (tabId === "statistics-tab" && statisticsTab && statisticsSection) {
+          statisticsTab.classList.add("active");
+          statisticsSection.classList.add("show", "active");
+          loadStatistics(); // Load stats when tab is clicked
+          loadCategoryStatistics(); // Load category stats when tab is clicked
         }
       };
       
       if (tutorTab) tutorTab.addEventListener("click", (e) => { e.preventDefault(); showTab("tutor-tab"); });
       if (reportsTab) reportsTab.addEventListener("click", (e) => { e.preventDefault(); showTab("reports-tab"); });
       if (deadlinesTab) deadlinesTab.addEventListener("click", (e) => { e.preventDefault(); showTab("deadlines-tab"); });
+      if (statisticsTab) statisticsTab.addEventListener("click", (e) => { e.preventDefault(); showTab("statistics-tab"); });
       
       console.log("Bootstrap tabs initialized successfully");
     };
@@ -991,6 +1443,16 @@
       loadDeadlines();
       loadReportHistory();
       loadCategories();
+      loadStatistics();
+      loadCategoryStatistics();
+      
+      // Add refresh button listener for statistics
+      if (refreshStatsBtn) {
+        refreshStatsBtn.addEventListener("click", () => {
+          loadStatistics();
+          loadCategoryStatistics();
+        });
+      }
       console.log("Initial data load started");
     } catch (e) {
       console.error("Error loading initial data:", e);

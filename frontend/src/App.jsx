@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import './App.css';
 import SubmissionsList from '../components/dashboard/SubmissionsList';
 import ExerciseList from '../components/dashboard/ExerciseList';
@@ -19,9 +19,37 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [showEmptyState, setShowEmptyState] = useState(false);
   const [deadlines, setDeadlines] = useState([]);
-  const [unmarkedOnly, setUnmarkedOnly] = useState(false);
+  const [showMarked, setShowMarked] = useState(false);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [showTech, setShowTech] = useState(false);
+  const hasLoadedDashboard = useRef(false);
+
+  const loadDashboardData = useCallback(async (options = {}) => {
+    const includeTech = Boolean(options.includeTech);
+    const query = includeTech ? '?include_tech=1' : '';
+
+    const [submissionsRes, assignmentsRes, deadlinesRes, categoriesRes] = await Promise.all([
+      fetch(`/api/marking_hub/submissions${query}`, { credentials: 'same-origin' }),
+      fetch('/api/marking_hub/assignments/mine', { credentials: 'same-origin' }),
+      fetch('/api/marking_hub/deadlines', { credentials: 'same-origin' }),
+      fetch(`/api/marking_hub/categories-with-counts${query}`, { credentials: 'same-origin' }),
+    ]);
+
+    if (!submissionsRes.ok) {
+      throw new Error('Failed to fetch submissions');
+    }
+
+    const data = await submissionsRes.json();
+    const assignments = await assignmentsRes.json().catch(() => []);
+    const deadlinesData = await deadlinesRes.json().catch(() => []);
+    const categoriesData = await categoriesRes.json().catch(() => { return { categories: [] }; });
+
+    setSubmissions(data);
+    setAssignedUsers(Array.isArray(assignments) ? assignments : []);
+    setDeadlines(Array.isArray(deadlinesData) ? deadlinesData : []);
+    setCategories(Array.isArray(categoriesData.categories) ? categoriesData.categories : []);
+  }, []);
 
   // Fetch submissions from API on mount
   useEffect(() => {
@@ -86,26 +114,9 @@ function App() {
           return;
         }
 
-        const [submissionsRes, assignmentsRes, deadlinesRes, categoriesRes] = await Promise.all([
-          fetch('/api/marking_hub/submissions', { credentials: 'same-origin' }),
-          fetch('/api/marking_hub/assignments/mine', { credentials: 'same-origin' }),
-          fetch('/api/marking_hub/deadlines', { credentials: 'same-origin' }),
-          fetch('/api/marking_hub/categories-with-counts', { credentials: 'same-origin' }),
-        ]);
-
-        if (!submissionsRes.ok) {
-          throw new Error('Failed to fetch submissions');
-        }
-
-        const data = await submissionsRes.json();
-        const assignments = await assignmentsRes.json().catch(() => []);
-        const deadlinesData = await deadlinesRes.json().catch(() => []);
-        const categoriesData = await categoriesRes.json().catch(() => { return { categories: [] }; });
         if (isMounted) {
-          setSubmissions(data);
-          setAssignedUsers(Array.isArray(assignments) ? assignments : []);
-          setDeadlines(Array.isArray(deadlinesData) ? deadlinesData : []);
-          setCategories(Array.isArray(categoriesData.categories) ? categoriesData.categories : []);
+          await loadDashboardData({ includeTech: showTech });
+          hasLoadedDashboard.current = true;
         }
       } catch (err) {
         console.error('Failed to initialize:', err);
@@ -125,7 +136,23 @@ function App() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [loadDashboardData, showTech]);
+
+  useEffect(() => {
+    if (!hasLoadedDashboard.current) {
+      return;
+    }
+    if (!currentUser || (!isAdmin && !isTutor)) {
+      return;
+    }
+    setLoading(true);
+    loadDashboardData({ includeTech: showTech })
+      .catch(err => {
+        console.error('Failed to reload submissions:', err);
+        setAuthError('Failed to load tutor assignments.');
+      })
+      .finally(() => setLoading(false));
+  }, [showTech, currentUser, isAdmin, isTutor, loadDashboardData]);
 
   const handleTileClick = (id) => {
     setSelectedSubmissionId(id);
@@ -222,13 +249,13 @@ function App() {
       result = result.filter(sub => sub.category === selectedCategory);
     }
     
-    // Filter unmarked only if toggled
-    if (unmarkedOnly) {
+    // Filter to unmarked only if showMarked is false
+    if (!showMarked) {
       result = result.filter(sub => sub.mark === null);
     }
     
     return result;
-  }, [latestSubmissions, selectedCategory, unmarkedOnly]);
+  }, [latestSubmissions, selectedCategory, showMarked]);
 
   const selectedSubmission = visibleSubmissions.find(s => s.id === selectedSubmissionId);
 
@@ -239,7 +266,7 @@ function App() {
 
     if (viewMode === 'exercise') {
       const exerciseId = selectedSubmission.challengeId ?? selectedExerciseId;
-      return visibleSubmissions
+      return latestSubmissions
         .filter(sub => sub.challengeId === exerciseId)
         .sort((a, b) => {
           const aUnmarked = a.mark === null;
@@ -251,11 +278,8 @@ function App() {
         });
     }
 
-    const key = getGroupKey(selectedSubmission);
-    return visibleSubmissions
-      .filter(sub => getGroupKey(sub) === key)
-      .sort((a, b) => (b.submittedAt ?? '').localeCompare(a.submittedAt ?? ''));
-  }, [visibleSubmissions, selectedSubmission, selectedExerciseId, viewMode]);
+    return [];
+  }, [selectedSubmission, selectedExerciseId, viewMode, latestSubmissions]);
 
   const getNavigationIndex = (navList) => {
     if (!selectedSubmission) {
@@ -324,18 +348,28 @@ function App() {
 
     return Array.from(groups.values())
       .map(group => {
-        const sorted = group.submissions.sort((a, b) => (b.submittedAt ?? '').localeCompare(a.submittedAt ?? ''));
-        const unmarkedCount = sorted.filter(sub => sub.mark === null).length;
-        const markedCount = sorted.length - unmarkedCount;
-        const submittedUserIds = new Set(sorted.map(sub => sub.userId));
+        const sortedAll = group.submissions.sort((a, b) => (b.submittedAt ?? '').localeCompare(a.submittedAt ?? ''));
+        const latestByUser = new Map();
+        sortedAll.forEach(sub => {
+          const userKey = sub.userId ?? `unknown-user-${sub.id}`;
+          const existing = latestByUser.get(userKey);
+          if (!existing || (sub.submittedAt ?? '') > (existing.submittedAt ?? '')) {
+            latestByUser.set(userKey, sub);
+          }
+        });
+        const latest = Array.from(latestByUser.values()).sort((a, b) => (b.submittedAt ?? '').localeCompare(a.submittedAt ?? ''));
+        const unmarkedCount = latest.filter(sub => sub.mark === null).length;
+        const markedCount = latest.length - unmarkedCount;
+        const submittedUserIds = new Set(latest.map(sub => sub.userId));
         const missingUsers = assignedUsers.filter(user => !submittedUserIds.has(user.userId));
         return {
           challengeId: group.challengeId,
           challenge: group.challenge,
           submissions: group.submissions,
+          latestSubmissions: latest,
           unmarkedCount,
           markedCount,
-          latestSubmittedAt: sorted[0]?.submittedAt ?? '',
+          latestSubmittedAt: latest[0]?.submittedAt ?? '',
           missingCount: missingUsers.length,
           missingInfo: missingUsers.map(user => {
             const name = user.userName || `User ${user.userId}`;
@@ -361,7 +395,7 @@ function App() {
     if (selectedCategory) {
       result = result.map(group => {
         // Filter submissions in this group by category
-        const filteredSubs = group.submissions.filter(sub => 
+        const filteredSubs = (group.latestSubmissions || group.submissions).filter(sub => 
           (sub.category || 'Uncategorized') === selectedCategory
         );
         // Only include groups that have submissions after filtering
@@ -379,21 +413,27 @@ function App() {
       }).filter(Boolean);
     }
     
-    // Filter unmarked only if toggled
-    if (unmarkedOnly) {
+    // Filter to unmarked only if showMarked is false
+    if (!showMarked) {
       result = result.filter(group => group.unmarkedCount > 0);
     }
     
     return result;
-  }, [exerciseGroups, selectedCategory, unmarkedOnly]);
+  }, [exerciseGroups, selectedCategory, showMarked]);
 
   const progressStats = useMemo(() => {
-    const total = latestSubmissions.length;
-    const marked = latestSubmissions.filter(sub => sub.mark !== null).length;
+    let filtered = latestSubmissions;
+    
+    if (selectedCategory) {
+      filtered = filtered.filter(sub => sub.category === selectedCategory);
+    }
+    
+    const total = filtered.length;
+    const marked = filtered.filter(sub => sub.mark !== null).length;
     const unmarked = total - marked;
     const percentage = total > 0 ? Math.round((marked / total) * 100) : 0;
     return { total, marked, unmarked, percentage };
-  }, [latestSubmissions]);
+  }, [latestSubmissions, selectedCategory]);
 
   const handleSave = (id, mark, comment, options = {}) => {
     return fetch(`/api/marking_hub/submissions/${id}`, {
@@ -439,7 +479,8 @@ function App() {
       .then(data => {
         alert(data.message);
         // Reload submissions
-        return fetch('/api/marking_hub/submissions', { credentials: 'same-origin' });
+        const query = showTech ? '?include_tech=1' : '';
+        return fetch(`/api/marking_hub/submissions${query}`, { credentials: 'same-origin' });
       })
       .then(res => res.json())
       .then(data => {
@@ -571,10 +612,18 @@ function App() {
         <label className="unmarked-only-toggle">
           <input
             type="checkbox"
-            checked={unmarkedOnly}
-            onChange={(e) => setUnmarkedOnly(e.target.checked)}
+            checked={showMarked}
+            onChange={(e) => setShowMarked(e.target.checked)}
           />
-          <span>Unmarked only</span>
+          <span>Show marked</span>
+        </label>
+        <label className="unmarked-only-toggle">
+          <input
+            type="checkbox"
+            checked={showTech}
+            onChange={(e) => setShowTech(e.target.checked)}
+          />
+          <span>Show TECH</span>
         </label>
         <select
           className="category-filter"

@@ -32,6 +32,7 @@ def generate_student_report_pdf(student_name, student_email, submissions, ctf_na
             - flag: The submitted flag/answer
             - mark: Mark score (0-100)
             - comment: Tutor feedback
+            - is_technical: True if TECH challenge
         ctf_name (str): Name of the CTF platform
         subtitle (str): Report subtitle (e.g., "Performance Report" or "Week1 Performance Report")
         
@@ -102,36 +103,73 @@ def generate_student_report_pdf(student_name, student_email, submissions, ctf_na
     
     # Summary stats
     if submissions:
-        marked = sum(1 for s in submissions if s.get('mark') is not None)
-        avg_mark = sum(s.get('mark', 0) for s in submissions if s.get('mark') is not None) / marked if marked > 0 else 0
+        technical_subs = [s for s in submissions if s.get('is_technical')]
+        non_technical_subs = [s for s in submissions if not s.get('is_technical')]
+
+        marked_subs = [s for s in submissions if s.get('mark') is not None]
+        marked = len(marked_subs)
         
-        summary_text = f"<b>Summary:</b> {len(submissions)} submission(s), {marked} marked, Average: {avg_mark:.1f}%"
+        # Calculate average as percentage
+        if marked > 0:
+            percentages = [
+                (s.get('mark', 0) / s.get('challengeValue', 100)) * 100
+                for s in marked_subs
+            ]
+            avg_mark = sum(percentages) / len(percentages)
+        else:
+            avg_mark = 0
+
+        summary_text = (
+            f"<b>Summary:</b> {len(submissions)} submission(s) "
+            f"({len(non_technical_subs)} non-technical, {len(technical_subs)} technical), "
+            f"{marked} marked, Average: {avg_mark:.1f}%"
+        )
         content.append(Paragraph(summary_text, normal_style))
         content.append(Spacer(1, 0.2*inch))
     
-    # Submissions table
-    if submissions:
-        content.append(Paragraph("Detailed Feedback", heading_style))
-        
-        for idx, sub in enumerate(submissions, 1):
+    def render_submissions_section(section_title, section_submissions):
+        if not section_submissions:
+            content.append(Paragraph(f"{section_title}: None", normal_style))
+            content.append(Spacer(1, 0.15*inch))
+            return
+
+        content.append(Paragraph(section_title, heading_style))
+
+        for idx, sub in enumerate(section_submissions, 1):
             challenge = html_escape(sub.get('challenge', 'Unknown Challenge'))
             mark = sub.get('mark')
+            challenge_value = sub.get('challengeValue', 100)
             comment = html_escape(sub.get('comment', ''))
             submitted_at = html_escape(sub.get('submitted_at', 'N/A'))
             flag = html_escape(sub.get('flag', ''))
-            
-            # Create mini table for this submission
-            mark_text = f"{mark}%" if mark is not None else "Not marked"
-            mark_color = HexColor('#27ae60') if mark is not None and mark >= 70 else HexColor('#e74c3c') if mark is not None else HexColor('#95a5a6')
-            
-            submission_data = [
-                [Paragraph(f"<b>{idx}. {challenge}</b>", normal_style)],
-                [Paragraph(f"<b>Submitted:</b> {submitted_at}", normal_style)],
-                [Paragraph(f"<b>Your answer:</b> {flag[:100]}{'...' if len(flag) > 100 else ''}", normal_style)],
-                [Paragraph(f"<b>Mark: <font color='{mark_color.hexval()}'>{mark_text}</font></b>", normal_style)],
-                [Paragraph(f"<b>Feedback:</b> {comment if comment else '(No feedback provided)'}", normal_style)],
-            ]
-            
+            is_technical = sub.get('is_technical', False)
+
+            # Calculate percentage
+            if mark is not None:
+                percentage = (mark / challenge_value) * 100
+                mark_text = f"{mark}/{challenge_value} ({percentage:.1f}%)"
+                mark_color = HexColor('#27ae60') if percentage >= 70 else HexColor('#e74c3c')
+            else:
+                mark_text = "Not marked"
+                mark_color = HexColor('#95a5a6')
+
+            # Technical submissions show only name, submitted time, and mark
+            if is_technical:
+                submission_data = [
+                    [Paragraph(f"<b>{idx}. {challenge}</b>", normal_style)],
+                    [Paragraph(f"<b>Submitted:</b> {submitted_at}", normal_style)],
+                    [Paragraph(f"<b>Mark: <font color='{mark_color.hexval()}'>{mark_text}</font></b>", normal_style)],
+                ]
+            else:
+                # Non-technical submissions show full details
+                submission_data = [
+                    [Paragraph(f"<b>{idx}. {challenge}</b>", normal_style)],
+                    [Paragraph(f"<b>Submitted:</b> {submitted_at}", normal_style)],
+                    [Paragraph(f"<b>Your answer:</b> {flag[:100]}{'...' if len(flag) > 100 else ''}", normal_style)],
+                    [Paragraph(f"<b>Mark: <font color='{mark_color.hexval()}'>{mark_text}</font></b>", normal_style)],
+                    [Paragraph(f"<b>Feedback:</b> {comment if comment else '(No feedback provided)'}", normal_style)],
+                ]
+
             table = Table(submission_data, colWidths=[6.5*inch])
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, -1), HexColor('#f5f5f5')),
@@ -141,9 +179,23 @@ def generate_student_report_pdf(student_name, student_email, submissions, ctf_na
                 ('FONTSIZE', (0, 0), (-1, -1), 9),
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ]))
-            
+
             content.append(table)
             content.append(Spacer(1, 0.2*inch))
+
+    # Submissions sections
+    if submissions:
+        content.append(Paragraph("Detailed Feedback", heading_style))
+        technical_subs = [s for s in submissions if s.get('is_technical')]
+        non_technical_subs = [s for s in submissions if not s.get('is_technical')]
+
+        render_submissions_section("non-technical", non_technical_subs)
+        
+        # Add page break before technical section if both sections exist
+        if non_technical_subs and technical_subs:
+            content.append(PageBreak())
+        
+        render_submissions_section("technical", technical_subs)
     else:
         content.append(Paragraph("No submissions to display.", normal_style))
     

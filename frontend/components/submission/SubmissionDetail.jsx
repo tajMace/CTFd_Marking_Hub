@@ -6,17 +6,23 @@ export default function SubmissionDetail({ submission, relatedSubmissions, onSel
   const [mark, setMark] = useState(submission.mark ?? '');
   const [comment, setComment] = useState(submission.comment ?? '');
   const [error, setError] = useState('');
+  const isTechnical = Boolean(submission.isTechnical);
+  const maxPoints = submission.challengeValue || 100;  // Default to 100 if not provided
 
   const handleSave = async () => {
+    if (isTechnical) {
+      setError('Technical submissions are not manually marked.');
+      return;
+    }
     // Validate that mark is provided
     if (mark === '' || mark === null || mark === undefined) {
-      setError('Mark is required. Please enter a value between 0-100.');
+      setError(`Mark is required. Please enter a value between 0-${maxPoints}.`);
       return;
     }
 
     const markValue = Number(mark);
-    if (isNaN(markValue) || markValue < 0 || markValue > 100) {
-      setError('Mark must be a number between 0 and 100.');
+    if (isNaN(markValue) || markValue < 0 || markValue > maxPoints) {
+      setError(`Mark must be a number between 0 and ${maxPoints}.`);
       return;
     }
 
@@ -48,6 +54,11 @@ export default function SubmissionDetail({ submission, relatedSubmissions, onSel
 
       <div className="challenge-section">
         <h3>Challenge: {submission.challenge}</h3>
+        {isTechnical && (
+          <div className="challenge-connection">
+            <strong>Technical:</strong> This exercise is auto-assessed and is not manually marked.
+          </div>
+        )}
         {submission.challengeConnectionInfo && (
           <div className="challenge-connection">
             <strong>Connection:</strong> {submission.challengeConnectionInfo}
@@ -78,64 +89,63 @@ export default function SubmissionDetail({ submission, relatedSubmissions, onSel
         <div className="marking-section">
           <h3>Marking</h3>
           
-          <div className="form-group">
-            <label htmlFor="mark">Mark *</label>
-            <input
-              id="mark"
-              type="number"
-              min="0"
-              max="100"
-              value={mark}
-              onChange={(e) => setMark(e.target.value)}
-              placeholder="Enter mark (0-100)"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="comment">Comment</label>
-            <textarea
-              id="comment"
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Enter feedback for the student..."
-              rows="8"
-            />
-          </div>
-
-          {error && (
-            <div className="error-message">
-              {error}
+          {isTechnical ? (
+            <div className="auto-marked-result">
+              <h4>Auto-Marked Result</h4>
+              <div className="result-box">
+                <div className="result-line">
+                  <strong>Correctness:</strong> {mark === maxPoints ? '✓ Correct' : '✗ Incorrect'}
+                </div>
+                <div className="result-line">
+                  <strong>Mark:</strong> {mark} / {maxPoints} ({((mark / maxPoints) * 100).toFixed(1)}%)
+                </div>
+                <p style={{ fontSize: '0.9em', color: '#666', marginTop: '8px' }}>
+                  This is an auto-assessed technical exercise. The mark is determined by the correctness of the submitted flag.
+                </p>
+              </div>
             </div>
-          )}
+          ) : (
+            <>
+              <div className="form-group">
+                <label htmlFor="mark">Mark (out of {maxPoints}) *</label>
+                <input
+                  id="mark"
+                  type="number"
+                  min="0"
+                  max={maxPoints}
+                  value={mark}
+                  onChange={(e) => setMark(e.target.value)}
+                  placeholder={`Enter mark (0-${maxPoints})`}
+                  required
+                />
+              </div>
 
-          <button className="save-btn" onClick={handleSave}>
-            Save Mark & Comment
-          </button>
+              <div className="form-group">
+                <label htmlFor="comment">Comment</label>
+                <textarea
+                  id="comment"
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="Enter feedback for the student..."
+                  rows="8"
+                />
+              </div>
+
+              {error && (
+                <div className="error-message">
+                  {error}
+                </div>
+              )}
+
+              <button className="save-btn" onClick={handleSave}>
+                Save Mark & Comment
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {relatedSubmissions?.length > 0 && (
-        <div className="related-submissions">
-          <h3>All Submissions for this Challenge</h3>
-          <div className="related-list">
-            {relatedSubmissions.map(sub => (
-              <div
-                key={sub.id}
-                className={`related-tile ${sub.id === submission.id ? 'active' : ''}`}
-                onClick={() => onSelectRelated(sub.id)}
-              >
-                <SubmissionTile
-                  name={sub.name}
-                  zid={sub.zid}
-                  submittedAt={sub.submittedAt}
-                  mark={sub.mark}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Related submissions hidden: only latest submission per student is shown */}
     </div>
   );
 }

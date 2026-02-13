@@ -2,30 +2,38 @@
 
 A comprehensive marking dashboard for non-flagged answers, including submission viewing, marking, comments, tutor assignment, and automated student performance reports.
 
+**📚 Complete API Documentation**: See [API.md](API.md) for detailed endpoint reference with examples.
+
 ## Features
 
 ### Core Marking
 - **Submission Dashboard** - View all submissions organized by user or challenge
-- **Detailed Marking** - Grade submissions (0-100) with detailed feedback comments
+- **Detailed Marking** - Grade submissions with dynamic max points and detailed feedback comments
 - **Tutor Assignment** - Assign students to specific tutors for distributed marking
 - **Progress Tracking** - Visual progress bar showing marking completion
 - **Unmarked Filter** - Quickly see what still needs grading
+- **Dynamic Marking Scales** - Support for challenges with custom max point values (not just 0-100)
+- **TECH Auto-Assessment** - Technical challenges (TECH prefix) are automatically marked based on flag correctness
 
 ### Student Reports
 - **Weekly Performance Reports** - Automatically generate and email PDF reports to students
 - **PDF Generation** - Beautiful formatted reports with:
   - Challenge name
   - Submitted answer/flag
-  - Awarded mark
+  - Awarded mark (with percentage based on challenge max points)
   - Tutor feedback
   - Summary statistics
 - **Manual Triggering** - Admin can generate reports on-demand via UI
 - **Report History** - Track all sent reports with metadata
+- **Category Filtering** - Send reports for specific weeks/categories
 
 ### Admin Features
-- **Sync Submissions** - Sync all CTFd submissions to marking system
+- **Sync Submissions** - Sync all CTFd submissions to marking system (auto-marks TECH challenges)
 - **Marking Deadlines** - Set per-challenge marking deadlines
 - **Report Management** - View report history and send weekly batch reports
+- **Tutor Statistics** - Track marking patterns, consistency, and performance per tutor
+- **Category Analytics** - View progress and statistics by challenge category
+- **Exercise Breakdown** - Detailed statistics per exercise with per-tutor marks
 
 ## Installation
 
@@ -113,6 +121,79 @@ Identifies which users are marked as tutors
 
 ### MarkingDeadline
 Stores per-challenge marking due dates
+
+## API Quick Reference
+
+**📖 For complete API documentation with examples, see [API.md](API.md)**
+
+### Most Common Endpoints
+
+**Submissions**
+```bash
+GET /api/marking_hub/submissions              # Get all submissions
+PUT /api/marking_hub/submissions/1            # Mark submission (mark + comment)
+POST /api/marking_hub/sync                    # Sync and auto-mark TECH challenges
+```
+
+**Tutor Management**
+```bash
+GET /api/marking_hub/tutors                   # List all tutors (admin)
+POST /api/marking_hub/tutors                  # Register new tutor (admin)
+GET /api/marking_hub/assignments              # List student-tutor assignments (admin)
+PUT /api/marking_hub/assignments/42           # Assign student to tutor (admin)
+```
+
+**Reports**
+```bash
+POST /api/marking_hub/reports/send/42         # Send report to specific student (admin)
+GET /api/marking_hub/reports/download/42      # Download report as PDF (admin)
+POST /api/marking_hub/reports/send-weekly     # Send all reports (admin)
+```
+
+**Statistics & Progress**
+```bash
+GET /api/marking_hub/categories-with-counts   # Get category progress
+GET /api/marking_hub/statistics/tutors        # Tutor performance stats (admin)
+GET /api/marking_hub/statistics/categories    # By-category stats (admin)
+GET /api/marking_hub/statistics/category/Web/exercises  # Per-exercise breakdown (admin)
+```
+
+### Example: Complete Marking Workflow
+
+```bash
+# 1. Register a tutor
+curl -X POST /api/marking_hub/tutors \
+  -d '{"user_id": 15}'
+
+# 2. Assign students to tutor
+curl -X PUT /api/marking_hub/assignments/42 \
+  -d '{"tutor_id": 15}'
+
+# 3. Sync all submissions from CTFd (auto-marks TECH)
+curl -X POST /api/marking_hub/sync
+
+# 4. Get unmarked submissions
+curl -X GET /api/marking_hub/submissions
+
+# 5. Mark a submission
+curl -X PUT /api/marking_hub/submissions/1 \
+  -d '{"mark": 85, "comment": "Well done!"}'
+
+# 6. Send report to student
+curl -X POST /api/marking_hub/reports/send/42
+
+# 7. Check tutor statistics
+curl -X GET /api/marking_hub/statistics/tutors
+```
+
+### Key Features in API
+
+- **Dynamic Marking Scales**: Marks validated against `challenge.value` (not hardcoded 100)
+- **Percentage Normalization**: Statistics display marks as percentages for fair comparison
+- **TECH Auto-Assessment**: POST `/sync` automatically marks technical submissions (full or zero)
+- **Per-Tutor Analytics**: See individual tutor patterns, consistency (std dev), and performance
+- **Category Filtering**: Reports and stats can be filtered by challenge category (Week1, Web, etc.)
+- **Latest Submission Only**: Only the most recent submission per student/challenge is marked
 
 ## Configuration
 

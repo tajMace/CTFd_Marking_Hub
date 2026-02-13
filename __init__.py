@@ -40,15 +40,24 @@ def load(app):
     def _is_tutor(user_id):
         return MarkingTutor.query.filter_by(user_id=user_id).first() is not None
 
+    def _is_technical_challenge(challenge):
+        if not challenge or not challenge.name:
+            return False
+        return challenge.name.lstrip().upper().startswith("TECH")
+
     # API: Get all marking submissions (admin = all, tutor = assigned only)
     @app.route("/api/marking_hub/submissions", methods=["GET"])
     @authed_only
     def get_marking_submissions():
         user = get_current_user()
+        include_tech = request.args.get("include_tech", "false").lower() in {"1", "true", "yes"}
 
         if is_admin():
             submissions = MarkingSubmission.query.all()
-            return jsonify([sub.to_dict() for sub in submissions])
+            if include_tech:
+                return jsonify([sub.to_dict() for sub in submissions])
+            visible = [sub for sub in submissions if not _is_technical_challenge(sub.submission.challenge)]
+            return jsonify([sub.to_dict() for sub in visible])
 
         if not _is_tutor(user.id):
             return jsonify({"message": "Forbidden"}), 403
@@ -69,7 +78,10 @@ def load(app):
             .filter(Submissions.user_id.in_(assigned_user_ids))
             .all()
         )
-        return jsonify([sub.to_dict() for sub in submissions])
+        if include_tech:
+            return jsonify([sub.to_dict() for sub in submissions])
+        visible = [sub for sub in submissions if not _is_technical_challenge(sub.submission.challenge)]
+        return jsonify([sub.to_dict() for sub in visible])
     
     # API: Get single submission
     @app.route("/api/marking_hub/submissions/<int:submission_id>", methods=["GET"])
@@ -103,6 +115,9 @@ def load(app):
 
         submission = MarkingSubmission.query.get_or_404(submission_id)
 
+        if _is_technical_challenge(submission.submission.challenge):
+            return jsonify({"message": "Technical submissions are not manually marked"}), 400
+
         if not is_admin():
             if not _is_tutor(user.id):
                 return jsonify({"message": "Forbidden"}), 403
@@ -126,7 +141,7 @@ def load(app):
 
         return jsonify(submission.to_dict())
     
-    # API: Sync CTFd submissions to marking table
+    # API: Sync CTFd submissions to marking table (with auto-mark for TECH)
     @app.route("/api/marking_hub/sync", methods=["POST"])
     @admins_only
     @bypass_csrf_protection
@@ -135,20 +150,51 @@ def load(app):
 
         all_submissions = Submissions.query.all()
         synced = 0
+        auto_marked = 0
 
         for sub in all_submissions:
             existing = MarkingSubmission.query.filter_by(submission_id=sub.id).first()
+            
             if not existing:
+                # Create new marking submission
                 marking_sub = MarkingSubmission(
                     submission_id=sub.id,
                     mark=None,
                     comment=None
                 )
+                
+                # Auto-mark TECH submissions based on correctness
+                if _is_technical_challenge(sub.challenge):
+                    challenge_max = sub.challenge.value if sub.challenge else 100
+                    marking_sub.mark = challenge_max if sub.correct else 0
+                    marking_sub.marked_at = datetime.utcnow()
+                    # Mark as auto-marked by system (get first admin user)
+                    first_admin = Users.query.filter_by(admin=True).order_by(Users.id).first()
+                    if first_admin:
+                        marking_sub.marked_by = first_admin.id
+                    auto_marked += 1
+                
                 db.session.add(marking_sub)
                 synced += 1
+            else:
+                # Update existing TECH submissions if correctness changed
+                if _is_technical_challenge(sub.challenge):
+                    challenge_max = sub.challenge.value if sub.challenge else 100
+                    new_mark = challenge_max if sub.correct else 0
+                    # Update mark if it differs from current (student may have submitted correct flag after initial rejection)
+                    if existing.mark != new_mark:
+                        existing.mark = new_mark
+                        existing.marked_at = datetime.utcnow()
+                        first_admin = Users.query.filter_by(admin=True).order_by(Users.id).first()
+                        if first_admin:
+                            existing.marked_by = first_admin.id
+                        db.session.add(existing)
 
         db.session.commit()
-        return jsonify({"message": f"Synced {synced} submissions"})
+        return jsonify({
+            "message": f"Synced {synced} new submissions",
+            "auto_marked_tech": auto_marked
+        })
 
     # API: Get all tutor assignments
     @app.route("/api/marking_hub/assignments", methods=["GET"])
@@ -329,7 +375,7 @@ def load(app):
         user = get_current_user()
         category = request.args.get('category', None)
         success, message = generate_and_send_student_report(user_id, triggered_by_user_id=user.id, category=category)
-        
+
         if success:
             return jsonify({"success": True, "message": message})
         else:
@@ -339,31 +385,34 @@ def load(app):
     @app.route("/api/marking_hub/reports/download/<int:user_id>", methods=["GET"])
     @admins_only
     def download_student_report(user_id):
-        from CTFd.models import Users
-        from .utils.report_generator import get_student_submissions_for_report
-        from CTFd.utils import get_config
-        
-        student = Users.query.get_or_404(user_id)
-        submissions = get_student_submissions_for_report(user_id)
-        
-        if not submissions:
-            return jsonify({"error": "No marked submissions for this student"}), 404
-        
-        ctf_name = get_config('ctf_name', 'CTF')
-        pdf_buffer = generate_student_report_pdf(
-            student_name=student.name,
-            student_email=student.email,
-            submissions=submissions,
-            ctf_name=ctf_name
-        )
-        
-        filename = f"report_{student.name.replace(' ', '_')}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
-        return send_file(
-            pdf_buffer,
-            mimetype='application/pdf',
-            as_attachment=True,
-            download_name=filename
-        )
+        try:
+            from CTFd.models import Users
+            from .utils.report_generator import get_student_submissions_for_report
+            from CTFd.utils import get_config
+            
+            student = Users.query.get_or_404(user_id)
+            submissions = get_student_submissions_for_report(user_id)
+            
+            if not submissions:
+                return jsonify({"error": "No marked submissions for this student"}), 404
+            
+            ctf_name = get_config('ctf_name', 'CTF')
+            pdf_buffer = generate_student_report_pdf(
+                student_name=student.name,
+                student_email=student.email,
+                submissions=submissions,
+                ctf_name=ctf_name
+            )
+            
+            filename = f"report_{student.name.replace(' ', '_')}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
+            return send_file(
+                pdf_buffer,
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=filename
+            )
+        except Exception as e:
+            return jsonify({"error": f"Failed to generate report: {str(e)}"}), 500
 
     # API: Get all student reports (admin only, for tracking)
     @app.route("/api/marking_hub/reports", methods=["GET"])
@@ -456,7 +505,11 @@ def load(app):
             
             # Group by category and count marked/unmarked
             category_counts = {}
+            include_tech = request.args.get("include_tech", "false").lower() in {"1", "true", "yes"}
+
             for sub in submissions:
+                if not include_tech and _is_technical_challenge(sub.submission.challenge):
+                    continue
                 category = sub.submission.challenge.category if sub.submission.challenge else "Uncategorized"
                 if category not in category_counts:
                     category_counts[category] = {"total": 0, "unmarked": 0}
@@ -501,4 +554,274 @@ def load(app):
                 "success": False,
                 "message": f"Error generating reports for {category}: {str(e)}"
             }), 500
+
+    # API: Get tutor marking statistics
+    @app.route("/api/marking_hub/statistics/tutors", methods=["GET"])
+    @admins_only
+    def get_tutor_statistics():
+        from CTFd.models import Submissions, Challenges
+        from sqlalchemy import func
+        
+        try:
+            # Get all tutors
+            tutors = MarkingTutor.query.all()
+            
+            stats = []
+            for tutor in tutors:
+                # Count submitted submissions assigned to this tutor
+                marked_subs = (
+                    MarkingSubmission.query
+                    .filter_by(marked_by=tutor.user_id)
+                    .all()
+                )
+                
+                marked_count = len(marked_subs)
+                # Calculate percentages: (mark / challenge.value) * 100
+                percentages = []
+                for s in marked_subs:
+                    if s.mark is not None:
+                        submission = Submissions.query.get(s.submission_id)
+                        if submission and submission.challenge:
+                            challenge_value = submission.challenge.value or 100
+                            percentage = (s.mark / challenge_value) * 100
+                            percentages.append(percentage)
+                
+                avg_mark = sum(percentages) / len(percentages) if percentages else 0
+                
+                # Calculate standard deviation
+                std_dev = 0
+                if len(percentages) > 1:
+                    variance = sum((x - avg_mark) ** 2 for x in percentages) / len(percentages)
+                    std_dev = round(variance ** 0.5, 1)
+                
+                # Get last marked date
+                last_marked = None
+                if marked_subs:
+                    last_marked_sub = max(marked_subs, key=lambda x: x.marked_at or datetime.min)
+                    if last_marked_sub.marked_at:
+                        last_marked = last_marked_sub.marked_at.strftime("%Y-%m-%d %H:%M")
+                
+                stats.append({
+                    "tutor_id": tutor.user_id,
+                    "name": tutor.user.name if tutor.user else "Unknown",
+                    "email": tutor.user.email if tutor.user else "",
+                    "submissions_marked": marked_count,
+                    "avg_mark": round(avg_mark, 1),
+                    "std_dev": std_dev,
+                    "last_marked": last_marked,
+                })
+            
+            # Global stats
+            all_marked = MarkingSubmission.query.filter(MarkingSubmission.mark.isnot(None)).all()
+            all_subs = MarkingSubmission.query.all()
+            
+            # Count unique student/challenge pairs (not total submissions)
+            from CTFd.models import Submissions
+            all_submissions = Submissions.query.all()
+            unique_solutions = set()
+            for sub in all_submissions:
+                # Create unique key for each student/challenge combo
+                unique_solutions.add((sub.user_id, sub.challenge_id))
+            
+            # Count unique marked submissions (student/challenge pairs that have been marked)
+            unique_marked = set()
+            percentages_global = []
+            for marking_sub in all_marked:
+                submission = Submissions.query.get(marking_sub.submission_id)
+                if submission:
+                    unique_marked.add((submission.user_id, submission.challenge_id))
+                    if marking_sub.mark is not None and submission.challenge:
+                        challenge_value = submission.challenge.value or 100
+                        percentage = (marking_sub.mark / challenge_value) * 100
+                        percentages_global.append(percentage)
+            
+            avg_mark_overall = sum(percentages_global) / len(percentages_global) if percentages_global else 0
+            
+            global_stats = {
+                "total_submitted": len(unique_solutions),
+                "total_marked": len(unique_marked),
+                "marking_percentage": round((len(unique_marked) / len(unique_solutions) * 100) if unique_solutions else 0, 1),
+                "avg_mark_overall": round(avg_mark_overall, 1),
+            }
+            
+            return jsonify({
+                "success": True,
+                "tutors": sorted(stats, key=lambda x: x["submissions_marked"], reverse=True),
+                "global": global_stats,
+            })
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "message": f"Error fetching statistics: {str(e)}"
+            }), 500
+
+    # API: Get marking statistics by category
+    @app.route("/api/marking_hub/statistics/categories", methods=["GET"])
+    @admins_only
+    def get_category_statistics():
+        from CTFd.models import Submissions, Challenges
+        
+        try:
+            # Get all challenges grouped by category
+            challenges = Challenges.query.all()
+            categories_dict = {}
+            
+            for challenge in challenges:
+                cat = challenge.category or "Uncategorized"
+                if cat not in categories_dict:
+                    categories_dict[cat] = []
+                categories_dict[cat].append(challenge.id)
+            
+            # For each category, count unique solutions and marked
+            category_stats = []
+            for category, challenge_ids in categories_dict.items():
+                # Get all submissions for challenges in this category
+                subs_in_cat = Submissions.query.filter(Submissions.challenge_id.in_(challenge_ids)).all()
+                
+                # Count unique student/challenge pairs
+                unique_solutions = set()
+                for sub in subs_in_cat:
+                    unique_solutions.add((sub.user_id, sub.challenge_id))
+                
+                # Get marking submissions for solutions in this category
+                marking_subs_in_cat = (
+                    MarkingSubmission.query
+                    .join(Submissions, MarkingSubmission.submission_id == Submissions.id)
+                    .filter(Submissions.challenge_id.in_(challenge_ids))
+                    .all()
+                )
+                
+                # Count unique marked pairs and calculate percentages
+                unique_marked = set()
+                percentages = []
+                for marking_sub in marking_subs_in_cat:
+                    submission = Submissions.query.get(marking_sub.submission_id)
+                    if submission:
+                        unique_marked.add((submission.user_id, submission.challenge_id))
+                    if marking_sub.mark is not None and submission and submission.challenge:
+                        challenge_value = submission.challenge.value or 100
+                        percentage = (marking_sub.mark / challenge_value) * 100
+                        percentages.append(percentage)
+                
+                # Calculate stats for this category
+                avg_mark = sum(percentages) / len(percentages) if percentages else 0
+                
+                category_stats.append({
+                    "category": category,
+                    "total_submitted": len(unique_solutions),
+                    "total_marked": len(unique_marked),
+                    "marking_percentage": round((len(unique_marked) / len(unique_solutions) * 100) if unique_solutions else 0, 1),
+                    "avg_mark": round(avg_mark, 1),
+                })
+            
+            return jsonify({
+                "success": True,
+                "categories": sorted(category_stats, key=lambda x: x["category"]),
+            })
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "message": f"Error fetching category statistics: {str(e)}"
+            }), 500
+
+    # API: Get marking statistics by exercise for a specific category
+    @app.route("/api/marking_hub/statistics/category/<category>/exercises", methods=["GET"])
+    @admins_only
+    def get_exercise_statistics_by_category(category):
+        from CTFd.models import Submissions, Challenges
+        
+        try:
+            # Get all challenges in this category
+            challenges = Challenges.query.filter_by(category=category).all()
+            challenge_ids = [c.id for c in challenges]
+            
+            if not challenge_ids:
+                return jsonify({
+                    "success": True,
+                    "category": category,
+                    "exercises": [],
+                })
+            
+            # Get all tutors for per-tutor stats
+            tutors = MarkingTutor.query.all()
+            
+            exercise_stats = []
+            for challenge in challenges:
+                # Get submissions for this exercise
+                subs = Submissions.query.filter_by(challenge_id=challenge.id).all()
+                
+                # Count unique students who submitted
+                unique_students = set(sub.user_id for sub in subs)
+                
+                # Get marking submissions for this exercise
+                marking_subs = (
+                    MarkingSubmission.query
+                    .join(Submissions, MarkingSubmission.submission_id == Submissions.id)
+                    .filter(Submissions.challenge_id == challenge.id)
+                    .all()
+                )
+                
+                # Count unique marked students and calculate percentages
+                unique_marked_students = set()
+                percentages = []
+                for marking_sub in marking_subs:
+                    submission = Submissions.query.get(marking_sub.submission_id)
+                    if submission:
+                        unique_marked_students.add(submission.user_id)
+                    if marking_sub.mark is not None:
+                        challenge_value = challenge.value or 100
+                        percentage = (marking_sub.mark / challenge_value) * 100
+                        percentages.append(percentage)
+                
+                avg_mark = sum(percentages) / len(percentages) if percentages else 0
+                
+                # Per-tutor breakdown
+                per_tutor_marks = []
+                for tutor in tutors:
+                    tutor_marking_subs = (
+                        MarkingSubmission.query
+                        .join(Submissions, MarkingSubmission.submission_id == Submissions.id)
+                        .filter(Submissions.challenge_id == challenge.id)
+                        .filter(MarkingSubmission.marked_by == tutor.user_id)
+                        .all()
+                    )
+                    
+                    tutor_percentages = []
+                    for ms in tutor_marking_subs:
+                        if ms.mark is not None:
+                            challenge_value = challenge.value or 100
+                            percentage = (ms.mark / challenge_value) * 100
+                            tutor_percentages.append(percentage)
+                    
+                    tutor_avg_mark = sum(tutor_percentages) / len(tutor_percentages) if tutor_percentages else None
+                    
+                    if tutor_percentages:  # Only include tutors who marked this exercise
+                        per_tutor_marks.append({
+                            "tutor_id": tutor.user_id,
+                            "tutor_name": tutor.user.name if tutor.user else "Unknown",
+                            "marked_count": len(tutor_percentages),
+                            "avg_mark": round(tutor_avg_mark, 1) if tutor_avg_mark else 0,
+                        })
+                
+                exercise_stats.append({
+                    "challenge_id": challenge.id,
+                    "challenge_name": challenge.name,
+                    "total_submitted": len(unique_students),
+                    "total_marked": len(unique_marked_students),
+                    "marking_percentage": round((len(unique_marked_students) / len(unique_students) * 100) if unique_students else 0, 1),
+                    "avg_mark": round(avg_mark, 1),
+                    "per_tutor": sorted(per_tutor_marks, key=lambda x: x["tutor_name"]),
+                })
+            
+            return jsonify({
+                "success": True,
+                "category": category,
+                "exercises": sorted(exercise_stats, key=lambda x: x["challenge_name"]),
+            })
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "message": f"Error fetching exercise statistics: {str(e)}"
+            }), 500
+
 
