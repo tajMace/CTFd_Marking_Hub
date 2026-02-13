@@ -7,5 +7,11 @@ export default defineConfig({
   build: {
     outDir: '../assets/dist',
     emptyOutDir: true,
-  }
+    rollupOptions: {
+      output: {
+        entryFileNames: 'index.js',
+        assetFileNames: 'index.[ext]',
+      },
+    },
+  },
 });
