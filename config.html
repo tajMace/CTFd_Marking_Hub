@@ -1067,18 +1067,18 @@
 
       reportsHistoryBody.innerHTML = "";
       reports.forEach((report) => {
-        const sentDate = new Date(report.sent_at).toLocaleString();
-        const emailSent = report.email_sent ? '<span class="badge bg-success">Yes</span>' : '<span class="badge bg-warning">No</span>';
+        const sentDate = new Date(report.sentAt).toLocaleString();
+        const emailSent = report.emailSent ? '<span class="badge bg-success">Yes</span>' : '<span class="badge bg-warning">No</span>';
         const row = document.createElement("tr");
         row.innerHTML = `
-          <td>${report.user_id}</td>
-          <td>${report.user_name || "N/A"}</td>
+          <td>${report.userId}</td>
+          <td>${report.userName || "N/A"}</td>
           <td>${sentDate}</td>
           <td>${emailSent}</td>
-          <td>${report.submission_count || 0}</td>
-          <td>${report.sent_by_name || "System"}</td>
+          <td>${report.submissionCount || 0}</td>
+          <td>${report.sentBy || "System"}</td>
           <td>
-            <a href="/api/marking_hub/reports/download/${report.user_id}" class="btn btn-sm btn-primary" title="Download PDF">PDF</a>
+            <a href="/api/marking_hub/reports/download/${report.userId}" class="btn btn-sm btn-primary" title="Download PDF">PDF</a>
           </td>
         `;
         reportsHistoryBody.appendChild(row);
