@@ -118,8 +118,15 @@ def generate_and_send_student_report(user_id, triggered_by_user_id=None, categor
         
         # Create email with PDF attachment
         # Note: CTFd's sendmail doesn't support attachments directly,
-        # so we'll send a plain text summary and save the PDF locally
+        # so we'll send a plain text summary with a link to view the full report
         subject = f"{ctf_name} - Your{category_label} Performance Report"
+        
+        # Get the base URL for the report link
+        from flask import request
+        base_url = get_config('ctf_url') or 'http://localhost:8000'
+        # Remove trailing slash if present
+        base_url = base_url.rstrip('/')
+        report_url = f"{base_url}/api/marking_hub/reports/view/my-report"
         
         email_text = f"""Hello {student.name},
 
@@ -140,7 +147,10 @@ Summary:
         
         email_text += f"""
 
-For full details and feedback, please see the attached PDF or log in to the marking dashboard.
+View your full detailed report here:
+{report_url}
+
+(You must be logged in to view your report)
 
 Best regards,
 {ctf_name} Team

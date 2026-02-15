@@ -381,7 +381,7 @@ def load(app):
         else:
             return jsonify({"success": False, "message": message}), 400
 
-    # API: Download student report as PDF
+    # API: Download student report as PDF (admin only)
     @app.route("/api/marking_hub/reports/download/<int:user_id>", methods=["GET"])
     @admins_only
     def download_student_report(user_id):
@@ -423,6 +423,59 @@ def load(app):
             response.headers['Content-Type'] = 'application/pdf'
             response.headers['Content-Disposition'] = f'inline; filename="{filename}"'
             response.headers['Content-Length'] = str(len(pdf_data))
+            print(f"[PDF DEBUG] Response headers set, returning", flush=True)
+            return response
+        except Exception as e:
+            import traceback
+            app.logger.error(f"PDF download error for user {user_id}: {str(e)}")
+            app.logger.error(traceback.format_exc())
+            return jsonify({"error": f"Failed to generate report: {str(e)}", "traceback": traceback.format_exc()}), 500
+
+    # API: View own report (students can view their own reports)
+    @app.route("/api/marking_hub/reports/view/my-report", methods=["GET"])
+    @authed_only
+    def view_my_report():
+        try:
+            from io import BytesIO
+            from CTFd.models import Users
+            from .utils.report_generator import get_student_submissions_for_report
+            from CTFd.utils import get_config
+            
+            current_user = get_current_user()
+            if not current_user:
+                return jsonify({"error": "Not authenticated"}), 401
+            
+            user_id = current_user.id
+            student = Users.query.get_or_404(user_id)
+            submissions = get_student_submissions_for_report(user_id)
+            
+            if not submissions:
+                return jsonify({"error": "No marked submissions available yet"}), 404
+            
+            ctf_name = get_config('ctf_name', 'CTF')
+            pdf_buffer = generate_student_report_pdf(
+                student_name=student.name,
+                student_email=student.email,
+                submissions=submissions,
+                ctf_name=ctf_name
+            )
+            
+            filename = f"report_{student.name.replace(' ', '_')}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
+            
+            # Read entire buffer and create response
+            pdf_data = pdf_buffer.read()
+            
+            from flask import make_response
+            response = make_response(pdf_data)
+            response.headers['Content-Type'] = 'application/pdf'
+            response.headers['Content-Disposition'] = f'inline; filename="{filename}"'
+            response.headers['Content-Length'] = str(len(pdf_data))
+            return response
+        except Exception as e:
+            import traceback
+            app.logger.error(f"Student report view error for user {current_user.id}: {str(e)}")
+            app.logger.error(traceback.format_exc())
+            return jsonify({"error": f"Failed to generate report: {str(e)}"}), 500
             print(f"[PDF DEBUG] Response headers set, returning", flush=True)
             return response
         except Exception as e:
