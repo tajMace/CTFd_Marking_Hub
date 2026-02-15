@@ -386,6 +386,7 @@ def load(app):
     @admins_only
     def download_student_report(user_id):
         try:
+            import traceback
             from CTFd.models import Users
             from .utils.report_generator import get_student_submissions_for_report
             from CTFd.utils import get_config
@@ -412,7 +413,10 @@ def load(app):
                 download_name=filename
             )
         except Exception as e:
-            return jsonify({"error": f"Failed to generate report: {str(e)}"}), 500
+            import traceback
+            app.logger.error(f"PDF download error for user {user_id}: {str(e)}")
+            app.logger.error(traceback.format_exc())
+            return jsonify({"error": f"Failed to generate report: {str(e)}", "traceback": traceback.format_exc()}), 500
 
     # API: Get all student reports (admin only, for tracking)
     @app.route("/api/marking_hub/reports", methods=["GET"])
