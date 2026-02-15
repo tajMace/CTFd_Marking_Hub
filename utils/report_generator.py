@@ -122,10 +122,21 @@ def generate_and_send_student_report(user_id, triggered_by_user_id=None, categor
         subject = f"{ctf_name} - Your{category_label} Performance Report"
         
         # Get the base URL for the report link
-        from flask import request
-        base_url = get_config('ctf_url') or 'http://localhost:8000'
-        # Remove trailing slash if present
-        base_url = base_url.rstrip('/')
+        from flask import request, has_request_context
+        
+        # Try to get URL from config first
+        base_url = get_config('ctf_url')
+        
+        # If not in config, try to build from request context
+        if not base_url and has_request_context():
+            base_url = request.url_root.rstrip('/')
+        
+        # Fall back to production URL if nothing else available
+        if not base_url:
+            base_url = 'http://3.107.58.138:1337'
+        else:
+            # Remove trailing slash if present
+            base_url = base_url.rstrip('/')
         
         # Include category in URL if specified
         if category:
