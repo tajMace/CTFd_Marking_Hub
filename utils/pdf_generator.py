@@ -42,6 +42,8 @@ def generate_student_report_pdf(student_name, student_email, submissions, ctf_na
     if not REPORTLAB_AVAILABLE:
         raise ImportError("reportlab is required for PDF generation. Install with: pip install reportlab")
     
+    print(f"[PDF GEN] Starting PDF generation for {student_name}, {len(submissions)} submissions", flush=True)
+    
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=0.75*inch, leftMargin=0.75*inch,
                             topMargin=0.75*inch, bottomMargin=0.75*inch)
@@ -128,6 +130,7 @@ def generate_student_report_pdf(student_name, student_email, submissions, ctf_na
         content.append(Spacer(1, 0.2*inch))
     
     def render_submissions_section(section_title, section_submissions):
+        print(f"[PDF GEN] Rendering section '{section_title}' with {len(section_submissions)} submissions", flush=True)
         if not section_submissions:
             content.append(Paragraph(f"{section_title}: None", normal_style))
             content.append(Spacer(1, 0.15*inch))
@@ -136,6 +139,7 @@ def generate_student_report_pdf(student_name, student_email, submissions, ctf_na
         content.append(Paragraph(section_title, heading_style))
 
         for idx, sub in enumerate(section_submissions, 1):
+            print(f"[PDF GEN] Processing submission {idx}: {sub.get('challenge')}", flush=True)
             challenge = html_escape(sub.get('challenge', 'Unknown Challenge'))
             mark = sub.get('mark')
             challenge_value = sub.get('challengeValue', 100)
@@ -185,9 +189,12 @@ def generate_student_report_pdf(student_name, student_email, submissions, ctf_na
 
     # Submissions sections
     if submissions:
+        print(f"[PDF GEN] Building detailed feedback section with {len(submissions)} submissions", flush=True)
         content.append(Paragraph("Detailed Feedback", heading_style))
         technical_subs = [s for s in submissions if s.get('is_technical')]
         non_technical_subs = [s for s in submissions if not s.get('is_technical')]
+        
+        print(f"[PDF GEN] Technical: {len(technical_subs)}, Non-technical: {len(non_technical_subs)}", flush=True)
 
         render_submissions_section("non-technical", non_technical_subs)
         
@@ -207,6 +214,14 @@ def generate_student_report_pdf(student_name, student_email, submissions, ctf_na
     ))
     
     # Build PDF
-    doc.build(content)
+    print(f"[PDF GEN] Building PDF with {len(content)} content elements", flush=True)
+    try:
+        doc.build(content)
+        print(f"[PDF GEN] PDF build successful, buffer size: {buffer.tell()}", flush=True)
+    except Exception as e:
+        print(f"[PDF GEN ERROR] Failed to build PDF: {e}", flush=True)
+        import traceback
+        print(f"[PDF GEN ERROR] Traceback: {traceback.format_exc()}", flush=True)
+        raise
     buffer.seek(0)
     return buffer
