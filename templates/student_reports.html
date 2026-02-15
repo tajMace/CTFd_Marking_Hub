@@ -1,205 +1,170 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>My Reports</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            padding: 30px;
-        }
-        h1 {
-            color: #333;
-            margin-top: 0;
-            border-bottom: 2px solid #e0e0e0;
-            padding-bottom: 15px;
-        }
-        .reports-list {
-            margin-top: 30px;
-        }
-        .report-card {
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
-            padding: 20px;
-            margin-bottom: 15px;
-            transition: box-shadow 0.2s;
-        }
-        .report-card:hover {
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-        .report-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        .report-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #333;
-        }
-        .report-date {
-            color: #666;
-            font-size: 14px;
-        }
-        .report-stats {
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 15px;
-        }
-        .view-button {
-            display: inline-block;
-            background-color: #007bff;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 4px;
-            text-decoration: none;
-            font-weight: 500;
-            transition: background-color 0.2s;
-        }
-        .view-button:hover {
-            background-color: #0056b3;
-        }
-        .no-reports {
-            text-align: center;
-            padding: 60px 20px;
-            color: #666;
-        }
-        .no-reports p {
-            font-size: 18px;
-            margin-bottom: 10px;
-        }
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #666;
-        }
-        .error {
-            background-color: #fee;
-            border: 1px solid #fcc;
-            color: #c33;
-            padding: 15px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-        }
-        .back-link {
-            display: inline-block;
-            margin-bottom: 20px;
-            color: #007bff;
-            text-decoration: none;
-        }
-        .back-link:hover {
-            text-decoration: underline;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <a href="/" class="back-link">← Back to CTF</a>
-        <h1>📊 My Reports</h1>
-        
-        <div id="error-message" class="error" style="display: none;"></div>
-        <div id="loading" class="loading">Loading your reports...</div>
-        <div id="reports-container" class="reports-list" style="display: none;"></div>
-        <div id="no-reports" class="no-reports" style="display: none;">
-            <p>📭 No reports available yet</p>
-            <p style="font-size: 14px;">Reports will appear here once your tutor sends them to you.</p>
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="jumbotron">
+                <h1 class="text-center">
+                    <i class="fas fa-file-pdf"></i>
+                    My Reports
+                </h1>
+            </div>
         </div>
     </div>
 
-    <script>
-        async function loadReports() {
-            try {
-                const response = await fetch('/api/marking_hub/reports/my-reports');
-                
-                if (!response.ok) {
-                    throw new Error('Failed to load reports');
-                }
-                
-                const reports = await response.json();
-                
-                document.getElementById('loading').style.display = 'none';
-                
-                if (reports.length === 0) {
-                    document.getElementById('no-reports').style.display = 'block';
-                    return;
-                }
-                
-                const container = document.getElementById('reports-container');
-                container.style.display = 'block';
-                
-                reports.forEach(report => {
-                    const card = createReportCard(report);
-                    container.appendChild(card);
-                });
-                
-            } catch (error) {
-                console.error('Error loading reports:', error);
-                document.getElementById('loading').style.display = 'none';
-                const errorDiv = document.getElementById('error-message');
-                errorDiv.textContent = 'Failed to load reports. Please try again later.';
-                errorDiv.style.display = 'block';
+    <div class="row">
+        <div class="col-md-12">
+            <div id="error-message" class="alert alert-danger" style="display: none;"></div>
+            
+            <div id="loading" class="text-center" style="padding: 60px 0;">
+                <i class="fas fa-circle-notch fa-spin fa-3x text-muted"></i>
+                <p class="mt-3 text-muted">Loading your reports...</p>
+            </div>
+            
+            <div id="reports-container" style="display: none;"></div>
+            
+            <div id="no-reports" class="text-center" style="display: none; padding: 60px 0;">
+                <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+                <h3 class="text-muted">No reports available yet</h3>
+                <p class="text-muted">Reports will appear here once your tutor sends them to you.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .report-card {
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        margin-bottom: 1rem;
+        transition: box-shadow 0.2s, border-color 0.2s;
+    }
+    .report-card:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        border-color: #80bdff;
+    }
+    .report-header {
+        padding: 1.25rem;
+        border-bottom: 1px solid #dee2e6;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .report-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin: 0;
+    }
+    .report-date {
+        color: #6c757d;
+        font-size: 0.875rem;
+    }
+    .report-body {
+        padding: 1.25rem;
+    }
+    .report-stats {
+        color: #6c757d;
+        margin-bottom: 1rem;
+    }
+    .report-stats i {
+        margin-right: 0.5rem;
+    }
+</style>
+
+<script>
+    async function loadReports() {
+        try {
+            const response = await fetch('/api/marking_hub/reports/my-reports');
+            
+            if (!response.ok) {
+                throw new Error('Failed to load reports');
             }
+            
+            const reports = await response.json();
+            
+            document.getElementById('loading').style.display = 'none';
+            
+            if (reports.length === 0) {
+                document.getElementById('no-reports').style.display = 'block';
+                return;
+            }
+            
+            const container = document.getElementById('reports-container');
+            container.style.display = 'block';
+            
+            reports.forEach(report => {
+                const card = createReportCard(report);
+                container.appendChild(card);
+            });
+            
+        } catch (error) {
+            console.error('Error loading reports:', error);
+            document.getElementById('loading').style.display = 'none';
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Failed to load reports. Please try again later.';
+            errorDiv.style.display = 'block';
         }
+    }
+    
+    function createReportCard(report) {
+        const card = document.createElement('div');
+        card.className = 'report-card';
         
-        function createReportCard(report) {
-            const card = document.createElement('div');
-            card.className = 'report-card';
-            
-            const header = document.createElement('div');
-            header.className = 'report-header';
-            
-            const title = document.createElement('div');
-            title.className = 'report-title';
-            title.textContent = report.category || 'Full Report';
-            
-            const date = document.createElement('div');
-            date.className = 'report-date';
-            date.textContent = formatDate(report.sent_at);
-            
-            header.appendChild(title);
-            header.appendChild(date);
-            
-            const stats = document.createElement('div');
-            stats.className = 'report-stats';
-            stats.textContent = `${report.marked_count} of ${report.submission_count} submissions marked`;
-            
-            const viewButton = document.createElement('a');
-            viewButton.className = 'view-button';
-            viewButton.href = `/api/marking_hub/reports/view/my-report${report.category ? '?category=' + encodeURIComponent(report.category) : ''}`;
-            viewButton.target = '_blank';
-            viewButton.textContent = 'View Report PDF';
-            
-            card.appendChild(header);
-            card.appendChild(stats);
-            card.appendChild(viewButton);
-            
-            return card;
-        }
+        // Header
+        const header = document.createElement('div');
+        header.className = 'report-header';
         
-        function formatDate(dateString) {
-            const date = new Date(dateString);
-            const options = { 
-                year: 'numeric', 
-                month: 'short', 
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            };
-            return date.toLocaleDateString('en-US', options);
-        }
+        const title = document.createElement('h5');
+        title.className = 'report-title';
+        title.innerHTML = `<i class="fas fa-file-alt mr-2"></i>${report.category || 'Full Report'}`;
         
-        // Load reports when page loads
+        const date = document.createElement('div');
+        date.className = 'report-date';
+        date.innerHTML = `<i class="far fa-clock mr-1"></i>${formatDate(report.sentAt)}`;
+        
+        header.appendChild(title);
+        header.appendChild(date);
+        
+        // Body
+        const body = document.createElement('div');
+        body.className = 'report-body';
+        
+        const stats = document.createElement('div');
+        stats.className = 'report-stats';
+        stats.innerHTML = `<i class="fas fa-check-circle"></i>${report.markedCount} of ${report.submissionCount} submissions marked`;
+        
+        const viewButton = document.createElement('a');
+        viewButton.className = 'btn btn-primary';
+        viewButton.href = `/api/marking_hub/reports/view/my-report${report.category ? '?category=' + encodeURIComponent(report.category) : ''}`;
+        viewButton.target = '_blank';
+        viewButton.innerHTML = '<i class="fas fa-external-link-alt mr-2"></i>View Report PDF';
+        
+        body.appendChild(stats);
+        body.appendChild(viewButton);
+        
+        card.appendChild(header);
+        card.appendChild(body);
+        
+        return card;
+    }
+    
+    function formatDate(dateString) {
+        const date = new Date(dateString);
+        const options = { 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        };
+        return date.toLocaleDateString('en-US', options);
+    }
+    
+    // Load reports when page loads
+    document.addEventListener('DOMContentLoaded', function() {
         loadReports();
-    </script>
-</body>
-</html>
+    });
+</script>
+{% endblock %}
