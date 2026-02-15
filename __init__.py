@@ -501,13 +501,6 @@ def load(app):
         
         reports = StudentReport.query.filter_by(user_id=current_user.id).order_by(StudentReport.sent_at.desc()).all()
         return jsonify([report.to_dict() for report in reports])
-            print(f"[PDF DEBUG] Response headers set, returning", flush=True)
-            return response
-        except Exception as e:
-            import traceback
-            app.logger.error(f"PDF download error for user {user_id}: {str(e)}")
-            app.logger.error(traceback.format_exc())
-            return jsonify({"error": f"Failed to generate report: {str(e)}", "traceback": traceback.format_exc()}), 500
 
     # API: Get all student reports (admin only, for tracking)
     @app.route("/api/marking_hub/reports", methods=["GET"])
