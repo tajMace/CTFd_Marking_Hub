@@ -408,13 +408,25 @@ def load(app):
                 ctf_name=ctf_name
             )
             
+            # Get buffer size for Content-Length header
+            pdf_buffer.seek(0, 2)  # Seek to end
+            buffer_size = pdf_buffer.tell()
+            pdf_buffer.seek(0)  # Seek back to start
+            
+            print(f"[PDF DEBUG] Sending PDF with size {buffer_size} bytes", flush=True)
+            
             filename = f"report_{student.name.replace(' ', '_')}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
-            return send_file(
-                pdf_buffer,
+            
+            from flask import Response
+            response = Response(
+                pdf_buffer.read(),
                 mimetype='application/pdf',
-                as_attachment=True,
-                download_name=filename
+                headers={
+                    'Content-Disposition': f'attachment; filename="{filename}"',
+                    'Content-Length': str(buffer_size)
+                }
             )
+            return response
         except Exception as e:
             import traceback
             app.logger.error(f"PDF download error for user {user_id}: {str(e)}")
