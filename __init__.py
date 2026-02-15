@@ -394,8 +394,8 @@ def load(app):
             student = Users.query.get_or_404(user_id)
             submissions = get_student_submissions_for_report(user_id)
             
-            app.logger.info(f"PDF download for user {user_id}: Found {len(submissions)} submissions")
-            app.logger.info(f"Submissions data: {submissions}")
+            print(f"[PDF DEBUG] Download for user {user_id}: Found {len(submissions)} submissions", flush=True)
+            print(f"[PDF DEBUG] Submissions data: {submissions}", flush=True)
             
             if not submissions:
                 return jsonify({"error": "No marked submissions for this student"}), 404
