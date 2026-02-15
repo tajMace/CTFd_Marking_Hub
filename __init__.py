@@ -417,13 +417,14 @@ def load(app):
             pdf_data = pdf_buffer.read()
             print(f"[PDF DEBUG] PDF data size: {len(pdf_data)} bytes", flush=True)
             
-            response = send_file(
-                BytesIO(pdf_data),
-                mimetype='application/pdf',
-                as_attachment=True,
-                download_name=filename
-            )
-            response.headers['Content-Length'] = len(pdf_data)
+            from flask import make_response
+            response = make_response(pdf_data)
+            response.headers['Content-Type'] = 'application/pdf'
+            response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+            response.headers['Content-Length'] = str(len(pdf_data))
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
             return response
         except Exception as e:
             import traceback
