@@ -29,6 +29,7 @@ def get_student_submissions_for_report(user_id, category=None):
     
     student = Users.query.get(user_id)
     if not student:
+        logger.info(f"Student {user_id} not found")
         return []
     
     query = (
@@ -42,6 +43,7 @@ def get_student_submissions_for_report(user_id, category=None):
         query = query.filter(Challenges.category == category)
     
     marking_subs = query.all()
+    logger.info(f"Found {len(marking_subs)} marking submissions for user {user_id}")
     
     report_data = []
     for marking_sub in marking_subs:
@@ -51,7 +53,10 @@ def get_student_submissions_for_report(user_id, category=None):
         stripped_name = challenge_name.lstrip()
         is_technical = stripped_name.upper().startswith("TECH")
 
+        logger.info(f"Processing submission {marking_sub.id}: challenge={challenge_name}, mark={marking_sub.mark}, is_technical={is_technical}")
+
         if not is_technical and marking_sub.mark is None:
+            logger.info(f"Skipping unmarked non-technical submission {marking_sub.id}")
             continue
 
         display_name = challenge_name
@@ -69,6 +74,7 @@ def get_student_submissions_for_report(user_id, category=None):
             'is_technical': is_technical,
         })
     
+    logger.info(f"Returning {len(report_data)} submissions for report")
     return sorted(report_data, key=lambda x: x['submitted_at'])
 
 
