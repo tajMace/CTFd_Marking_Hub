@@ -126,7 +126,12 @@ def generate_and_send_student_report(user_id, triggered_by_user_id=None, categor
         base_url = get_config('ctf_url') or 'http://localhost:8000'
         # Remove trailing slash if present
         base_url = base_url.rstrip('/')
-        report_url = f"{base_url}/api/marking_hub/reports/view/my-report"
+        
+        # Include category in URL if specified
+        if category:
+            report_url = f"{base_url}/api/marking_hub/reports/view/my-report?category={category}"
+        else:
+            report_url = f"{base_url}/api/marking_hub/reports/view/my-report"
         
         email_text = f"""Hello {student.name},
 
@@ -163,6 +168,7 @@ Best regards,
             # Record in database
             report = StudentReport(
                 user_id=user_id,
+                category=category,
                 sent_by=triggered_by_user_id,
                 email_sent=student.email,
                 submission_count=len(submissions),

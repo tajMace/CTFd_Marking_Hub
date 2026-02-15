@@ -149,6 +149,7 @@ class StudentReport(db.Model):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    category = Column(String(100), nullable=True)  # Week/category (e.g., 'Week1', 'Week2', or None for full report)
     sent_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     sent_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)  # Which admin triggered it
     email_sent = Column(String(255), nullable=True)  # The email address it was sent to
@@ -164,6 +165,7 @@ class StudentReport(db.Model):
             "userId": self.user_id,
             "userName": self.user.name if self.user else None,
             "userEmail": self.user.email if self.user else None,
+            "category": self.category,
             "sentAt": self.sent_at.strftime("%Y-%m-%d %H:%M:%S"),
             "emailSent": self.email_sent,
             "submissionCount": self.submission_count,

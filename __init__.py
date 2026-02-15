@@ -391,25 +391,32 @@ def load(app):
             from CTFd.models import Users
             from .utils.report_generator import get_student_submissions_for_report
             from CTFd.utils import get_config
+            from flask import request
+            
+            # Get optional category parameter
+            category = request.args.get('category', None)
             
             student = Users.query.get_or_404(user_id)
-            submissions = get_student_submissions_for_report(user_id)
+            submissions = get_student_submissions_for_report(user_id, category=category)
             
-            print(f"[PDF DEBUG] Download for user {user_id}: Found {len(submissions)} submissions", flush=True)
+            print(f"[PDF DEBUG] Download for user {user_id}, category={category}: Found {len(submissions)} submissions", flush=True)
             print(f"[PDF DEBUG] Submissions data: {submissions}", flush=True)
             
             if not submissions:
-                return jsonify({"error": "No marked submissions for this student"}), 404
+                category_msg = f" for {category}" if category else ""
+                return jsonify({"error": f"No marked submissions for this student{category_msg}"}), 404
             
             ctf_name = get_config('ctf_name', 'CTF')
+            category_label = f" - {category}" if category else ""
             pdf_buffer = generate_student_report_pdf(
                 student_name=student.name,
                 student_email=student.email,
                 submissions=submissions,
-                ctf_name=ctf_name
+                ctf_name=ctf_name,
+                subtitle=f"Performance Report{category_label}"
             )
             
-            filename = f"report_{student.name.replace(' ', '_')}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
+            filename = f"report_{student.name.replace(' ', '_')}_{category or 'full'}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
             
             print(f"[PDF DEBUG] Creating response for {filename}", flush=True)
             
@@ -440,27 +447,34 @@ def load(app):
             from CTFd.models import Users
             from .utils.report_generator import get_student_submissions_for_report
             from CTFd.utils import get_config
+            from flask import request
             
             current_user = get_current_user()
             if not current_user:
                 return jsonify({"error": "Not authenticated"}), 401
             
+            # Get optional category parameter
+            category = request.args.get('category', None)
+            
             user_id = current_user.id
             student = Users.query.get_or_404(user_id)
-            submissions = get_student_submissions_for_report(user_id)
+            submissions = get_student_submissions_for_report(user_id, category=category)
             
             if not submissions:
-                return jsonify({"error": "No marked submissions available yet"}), 404
+                category_msg = f" for {category}" if category else ""
+                return jsonify({"error": f"No marked submissions available yet{category_msg}"}), 404
             
             ctf_name = get_config('ctf_name', 'CTF')
+            category_label = f" - {category}" if category else ""
             pdf_buffer = generate_student_report_pdf(
                 student_name=student.name,
                 student_email=student.email,
                 submissions=submissions,
-                ctf_name=ctf_name
+                ctf_name=ctf_name,
+                subtitle=f"Performance Report{category_label}"
             )
             
-            filename = f"report_{student.name.replace(' ', '_')}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
+            filename = f"report_{student.name.replace(' ', '_')}_{category or 'full'}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
             
             # Read entire buffer and create response
             pdf_data = pdf_buffer.read()
@@ -476,6 +490,17 @@ def load(app):
             app.logger.error(f"Student report view error for user {current_user.id}: {str(e)}")
             app.logger.error(traceback.format_exc())
             return jsonify({"error": f"Failed to generate report: {str(e)}"}), 500
+
+    # API: List available reports for current user
+    @app.route("/api/marking_hub/reports/my-reports", methods=["GET"])
+    @authed_only
+    def list_my_reports():
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({"error": "Not authenticated"}), 401
+        
+        reports = StudentReport.query.filter_by(user_id=current_user.id).order_by(StudentReport.sent_at.desc()).all()
+        return jsonify([report.to_dict() for report in reports])
             print(f"[PDF DEBUG] Response headers set, returning", flush=True)
             return response
         except Exception as e:
