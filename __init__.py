@@ -413,13 +413,13 @@ def load(app):
                 return jsonify({"error": f"No marked submissions for this student{category_msg}"}), 404
             
             ctf_name = get_config('ctf_name', 'CTF')
-            category_label = f" - {category}" if category else ""
+            subtitle = f"{category} Report" if category else "Full Performance Report"
             pdf_buffer = generate_student_report_pdf(
                 student_name=student.name,
                 student_email=student.email,
                 submissions=submissions,
                 ctf_name=ctf_name,
-                subtitle=f"Performance Report{category_label}"
+                subtitle=subtitle
             )
             
             filename = f"report_{student.name.replace(' ', '_')}_{category or 'full'}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
@@ -471,13 +471,13 @@ def load(app):
                 return jsonify({"error": f"No marked submissions available yet{category_msg}"}), 404
             
             ctf_name = get_config('ctf_name', 'CTF')
-            category_label = f" - {category}" if category else ""
+            subtitle = f"{category} Report" if category else "Full Performance Report"
             pdf_buffer = generate_student_report_pdf(
                 student_name=student.name,
                 student_email=student.email,
                 submissions=submissions,
                 ctf_name=ctf_name,
-                subtitle=f"Performance Report{category_label}"
+                subtitle=subtitle
             )
             
             filename = f"report_{student.name.replace(' ', '_')}_{category or 'full'}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"

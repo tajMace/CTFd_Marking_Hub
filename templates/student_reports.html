@@ -118,7 +118,8 @@
         
         const title = document.createElement('h5');
         title.className = 'report-title';
-        title.innerHTML = `<i class="fas fa-file-alt mr-2"></i>${report.category || 'Full Report'}`;
+        const reportName = report.category ? `${report.category} Report` : 'Full Performance Report';
+        title.innerHTML = `<i class="fas fa-file-alt mr-2"></i>${reportName}`;
         
         const date = document.createElement('div');
         date.className = 'report-date';

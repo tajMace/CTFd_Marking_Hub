@@ -1070,7 +1070,9 @@
       reports.forEach((report) => {
         const sentDate = new Date(report.sentAt).toLocaleString();
         const emailSent = report.emailSent ? '<span class="badge bg-success">Yes</span>' : '<span class="badge bg-warning">No</span>';
-        const category = report.category || '<span class="text-muted">Full Report</span>';
+        const categoryDisplay = report.category 
+          ? `${report.category} Report`
+          : '<span class="text-muted">Full Performance Report</span>';
         const downloadUrl = report.category 
           ? `/api/marking_hub/reports/download/${report.userId}?category=${encodeURIComponent(report.category)}`
           : `/api/marking_hub/reports/download/${report.userId}`;
@@ -1078,7 +1080,7 @@
         row.innerHTML = `
           <td>${report.userId}</td>
           <td>${report.userName || "N/A"}</td>
-          <td>${category}</td>
+          <td>${categoryDisplay}</td>
           <td>${sentDate}</td>
           <td>${emailSent}</td>
           <td>${report.submissionCount || 0}</td>
