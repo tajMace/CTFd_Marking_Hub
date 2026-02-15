@@ -416,6 +416,7 @@ def load(app):
             # Read entire buffer and create response
             pdf_data = pdf_buffer.read()
             print(f"[PDF DEBUG] PDF data size: {len(pdf_data)} bytes", flush=True)
+            print(f"[PDF DEBUG] First 20 bytes: {pdf_data[:20]}", flush=True)
             
             from flask import make_response
             response = make_response(pdf_data)
@@ -423,6 +424,8 @@ def load(app):
             response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
             response.headers['Content-Length'] = str(len(pdf_data))
             response.headers['Accept-Ranges'] = 'bytes'
+            response.headers['Connection'] = 'close'
+            print(f"[PDF DEBUG] Response headers set, returning", flush=True)
             return response
         except Exception as e:
             import traceback
