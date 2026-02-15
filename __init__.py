@@ -419,12 +419,10 @@ def load(app):
             
             from flask import make_response
             response = make_response(pdf_data)
-            response.headers['Content-Type'] = 'application/pdf'
+            response.headers['Content-Type'] = 'application/octet-stream'
             response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
             response.headers['Content-Length'] = str(len(pdf_data))
-            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-            response.headers['Pragma'] = 'no-cache'
-            response.headers['Expires'] = '0'
+            response.headers['Accept-Ranges'] = 'bytes'
             return response
         except Exception as e:
             import traceback
