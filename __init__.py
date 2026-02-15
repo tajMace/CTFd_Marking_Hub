@@ -420,11 +420,9 @@ def load(app):
             
             from flask import make_response
             response = make_response(pdf_data)
-            response.headers['Content-Type'] = 'application/octet-stream'
-            response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+            response.headers['Content-Type'] = 'application/pdf'
+            response.headers['Content-Disposition'] = f'inline; filename="{filename}"'
             response.headers['Content-Length'] = str(len(pdf_data))
-            response.headers['Accept-Ranges'] = 'bytes'
-            response.headers['Connection'] = 'close'
             print(f"[PDF DEBUG] Response headers set, returning", flush=True)
             return response
         except Exception as e:
