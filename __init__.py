@@ -387,6 +387,7 @@ def load(app):
     def download_student_report(user_id):
         try:
             import traceback
+            from io import BytesIO
             from CTFd.models import Users
             from .utils.report_generator import get_student_submissions_for_report
             from CTFd.utils import get_config
@@ -408,24 +409,21 @@ def load(app):
                 ctf_name=ctf_name
             )
             
-            # Get buffer size for Content-Length header
-            pdf_buffer.seek(0, 2)  # Seek to end
-            buffer_size = pdf_buffer.tell()
-            pdf_buffer.seek(0)  # Seek back to start
-            
-            print(f"[PDF DEBUG] Sending PDF with size {buffer_size} bytes", flush=True)
-            
             filename = f"report_{student.name.replace(' ', '_')}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
             
-            from flask import Response
-            response = Response(
-                pdf_buffer.read(),
+            print(f"[PDF DEBUG] Creating response for {filename}", flush=True)
+            
+            # Read entire buffer and create response
+            pdf_data = pdf_buffer.read()
+            print(f"[PDF DEBUG] PDF data size: {len(pdf_data)} bytes", flush=True)
+            
+            response = send_file(
+                BytesIO(pdf_data),
                 mimetype='application/pdf',
-                headers={
-                    'Content-Disposition': f'attachment; filename="{filename}"',
-                    'Content-Length': str(buffer_size)
-                }
+                as_attachment=True,
+                download_name=filename
             )
+            response.headers['Content-Length'] = len(pdf_data)
             return response
         except Exception as e:
             import traceback
