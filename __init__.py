@@ -37,6 +37,12 @@ def load(app):
         nonce = session.get('nonce')
         return render_template("plugins/CTFd_Marking_Hub/templates/marking_dashboard.html", nonce=nonce)
     
+    # Student reports page route
+    @app.route("/my-reports", methods=["GET"])
+    @authed_only
+    def student_reports():
+        return render_template("plugins/CTFd_Marking_Hub/templates/student_reports.html")
+    
     def _is_tutor(user_id):
         return MarkingTutor.query.filter_by(user_id=user_id).first() is not None
 
