@@ -243,8 +243,9 @@ def load(app):
         # Create HMAC hash (this is what the client will send back)
         # Use Flask secret key for signing
         secret = app.config.get('SECRET_KEY', 'default-secret-key')
+        secret_bytes = secret.encode() if isinstance(secret, str) else secret
         token_hash = hmac.new(
-            secret.encode(),
+            secret_bytes,
             f"{user_id}:{challenge_id}:{random_token}".encode(),
             hashlib.sha256
         ).hexdigest()
@@ -295,8 +296,9 @@ def load(app):
 
         # Verify the token
         secret = app.config.get('SECRET_KEY', 'default-secret-key')
+        secret_bytes = secret.encode() if isinstance(secret, str) else secret
         expected_hash = hmac.new(
-            secret.encode(),
+            secret_bytes,
             f"{user_id}:{challenge_id}:{token}".encode(),
             hashlib.sha256
         ).hexdigest()
