@@ -10,6 +10,9 @@ from .utils.pdf_generator import generate_student_report_pdf
 from datetime import datetime
 
 def load(app):
+    # Load automarker secret from environment
+    app.config['MARKING_HUB_AUTOMARKER_SECRET'] = os.getenv('MARKING_HUB_AUTOMARKER_SECRET')
+    
     # Create tables if they don't exist
     with app.app_context():
         db.create_all()
