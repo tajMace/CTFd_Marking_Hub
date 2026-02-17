@@ -340,11 +340,16 @@ def load(app):
             )
             
             # Auto-evaluate the flag
-            from CTFd.plugins.challenges import CHALLENGE_CLASSES
-            handler = CHALLENGE_CLASSES.get(challenge.type)
-            if handler:
-                submission.correct = handler.solve(challenge, flag)
-            else:
+            # Use Flask's request context to call solve
+            try:
+                from CTFd.plugins.challenges import CHALLENGE_CLASSES
+                handler = CHALLENGE_CLASSES.get(challenge.type)
+                if handler:
+                    submission.correct = handler.solve(challenge, request, flag)
+                else:
+                    submission.correct = False
+            except TypeError:
+                # Fallback for handlers that don't need request
                 submission.correct = False
 
             db.session.add(submission)
