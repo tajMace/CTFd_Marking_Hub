@@ -1,5 +1,5 @@
 from CTFd.models import db
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, UniqueConstraint, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -172,3 +172,42 @@ class StudentReport(db.Model):
             "markedCount": self.marked_count,
             "sentBy": self.trigger_user.name if self.trigger_user else "System",
         }
+
+class SubmissionToken(db.Model):
+    """
+    Secure tokens for posting submissions on behalf of students.
+    Each token is single-use and tied to a specific student and challenge.
+    Uses HMAC-based security to prevent forgery.
+    """
+    __tablename__ = "submission_tokens"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    challenge_id = Column(Integer, ForeignKey("challenges.id", ondelete="CASCADE"), nullable=False)
+    token_hash = Column(String(256), nullable=False, unique=True)
+    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)  # Admin/tutor who created it
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)  # Token expiration time
+    used_at = Column(DateTime, nullable=True)  # When token was used (null = unused)
+    used = Column(Boolean, default=False)  # Whether this token has been used
+
+    user = relationship("Users", foreign_keys=[user_id], lazy="joined")
+    challenge = relationship("Challenges", foreign_keys=[challenge_id], lazy="joined")
+    creator = relationship("Users", foreign_keys=[created_by], lazy="select")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "userId": self.user_id,
+            "userName": self.user.name if self.user else None,
+            "challengeId": self.challenge_id,
+            "challengeName": self.challenge.name if self.challenge else None,
+            "createdBy": self.creator.name if self.creator else None,
+            "createdAt": self.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            "expiresAt": self.expires_at.strftime("%Y-%m-%d %H:%M:%S"),
+            "used": self.used,
+            "usedAt": self.used_at.strftime("%Y-%m-%d %H:%M:%S") if self.used_at else None,
+        }
+
+    def __repr__(self):
+        return f"<SubmissionToken {self.id} - User {self.user_id} Challenge {self.challenge_id}>"

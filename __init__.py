@@ -4,7 +4,7 @@ from CTFd.models import db, Users
 from CTFd.utils.decorators import admins_only, authed_only
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.plugins import bypass_csrf_protection
-from .models import MarkingSubmission, MarkingAssignment, MarkingTutor, MarkingDeadline, StudentReport
+from .models import MarkingSubmission, MarkingAssignment, MarkingTutor, MarkingDeadline, StudentReport, SubmissionToken
 from .utils.report_generator import generate_and_send_student_report, generate_weekly_reports, get_available_categories
 from .utils.pdf_generator import generate_student_report_pdf
 from datetime import datetime
@@ -201,6 +201,192 @@ def load(app):
             "message": f"Synced {synced} new submissions",
             "auto_marked_tech": auto_marked
         })
+
+    # API: Generate secure token for submitting on behalf of student
+    @app.route("/api/marking_hub/submissions/generate-token", methods=["POST"])
+    @bypass_csrf_protection
+    def generate_submission_token():
+        import hmac
+        import hashlib
+        import secrets
+        from datetime import timedelta
+        from .models import SubmissionToken
+        
+        # Validate automarker secret header
+        automarker_secret = app.config.get('MARKING_HUB_AUTOMARKER_SECRET')
+        if not automarker_secret:
+            return jsonify({"message": "Automarker secret not configured on server"}), 500
+        
+        provided_secret = request.headers.get('X-Automarker-Secret', '')
+        if not hmac.compare_digest(provided_secret, automarker_secret):
+            return jsonify({"message": "Invalid or missing automarker secret"}), 403
+        
+        data = request.get_json() or {}
+        user_id = data.get("user_id")
+        challenge_id = data.get("challenge_id")
+        expires_in_hours = data.get("expires_in_hours", 24)  # Default 24 hours
+
+        if not user_id or not challenge_id:
+            return jsonify({"message": "user_id and challenge_id are required"}), 400
+
+        from CTFd.models import Users, Challenges
+        
+        user = Users.query.filter_by(id=user_id).first_or_404()
+        challenge = Challenges.query.filter_by(id=challenge_id).first_or_404()
+
+        # Generate random token
+        random_token = secrets.token_urlsafe(32)
+        
+        # Create HMAC hash (this is what the client will send back)
+        # Use Flask secret key for signing
+        secret = app.config.get('SECRET_KEY', 'default-secret-key')
+        token_hash = hmac.new(
+            secret.encode(),
+            f"{user_id}:{challenge_id}:{random_token}".encode(),
+            hashlib.sha256
+        ).hexdigest()
+
+        # Create expiration timestamp
+        expires_at = datetime.utcnow() + timedelta(hours=expires_in_hours)
+
+        submission_token = SubmissionToken(
+            user_id=user_id,
+            challenge_id=challenge_id,
+            token_hash=token_hash,
+            created_by=None,  # System-generated token, not tied to a specific admin user
+            expires_at=expires_at
+        )
+
+        db.session.add(submission_token)
+        db.session.commit()
+
+        return jsonify({
+            "token": random_token,
+            "token_id": submission_token.id,
+            "user_id": user_id,
+            "user_name": user.name,
+            "challenge_id": challenge_id,
+            "challenge_name": challenge.name,
+            "hash": token_hash,
+            "expires_at": expires_at.strftime("%Y-%m-%d %H:%M:%S")
+        })
+
+    # API: Post submission on behalf of student using secure token
+    @app.route("/api/marking_hub/submissions/on-behalf-of", methods=["POST"])
+    @bypass_csrf_protection
+    def post_submission_on_behalf():
+        import hmac
+        import hashlib
+        from .models import SubmissionToken
+        from CTFd.models import Submissions, Users, Challenges, Teams
+        
+        data = request.get_json() or {}
+        user_id = data.get("user_id")
+        challenge_id = data.get("challenge_id")
+        flag = data.get("flag")
+        token = data.get("token")
+        token_hash = data.get("hash")
+
+        if not all([user_id, challenge_id, flag, token, token_hash]):
+            return jsonify({"message": "user_id, challenge_id, flag, token, and hash are required"}), 400
+
+        # Verify the token
+        secret = app.config.get('SECRET_KEY', 'default-secret-key')
+        expected_hash = hmac.new(
+            secret.encode(),
+            f"{user_id}:{challenge_id}:{token}".encode(),
+            hashlib.sha256
+        ).hexdigest()
+
+        if not hmac.compare_digest(expected_hash, token_hash):
+            return jsonify({"message": "Invalid security hash"}), 403
+
+        # Find and validate the token
+        submission_token = SubmissionToken.query.filter_by(
+            user_id=user_id,
+            challenge_id=challenge_id,
+            token_hash=token_hash
+        ).first()
+
+        if not submission_token:
+            return jsonify({"message": "Token not found or invalid"}), 404
+
+        # Check if token is already used
+        if submission_token.used:
+            return jsonify({"message": "Token already used"}), 403
+
+        # Check if token is expired
+        if submission_token.expires_at < datetime.utcnow():
+            return jsonify({"message": "Token expired"}), 403
+
+        # Verify user and challenge exist
+        user = Users.query.filter_by(id=user_id).first_or_404()
+        challenge = Challenges.query.filter_by(id=challenge_id).first_or_404()
+
+        try:
+            # Create submission in CTFd
+            submission = Submissions(
+                user_id=user_id,
+                team_id=user.team_id if hasattr(user, 'team_id') else None,
+                challenge_id=challenge_id,
+                ip='127.0.0.1',  # Internal submission
+                provided=flag,
+                date=datetime.utcnow()
+            )
+            
+            # Auto-evaluate the flag
+            from CTFd.plugins.challenges import CHALLENGE_CLASSES
+            handler = CHALLENGE_CLASSES.get(challenge.type)
+            if handler:
+                submission.correct = handler.solve(challenge, flag)
+            else:
+                submission.correct = False
+
+            db.session.add(submission)
+            db.session.flush()  # Get the submission ID
+
+            # Create corresponding marking submission
+            marking_sub = MarkingSubmission(
+                submission_id=submission.id,
+                mark=None,
+                comment=None
+            )
+
+            # Auto-mark TECH submissions
+            if _is_technical_challenge(challenge):
+                challenge_max = challenge.value if challenge else 100
+                marking_sub.mark = challenge_max if submission.correct else 0
+                marking_sub.marked_at = datetime.utcnow()
+                first_admin = Users.query.filter_by(admin=True).order_by(Users.id).first()
+                if first_admin:
+                    marking_sub.marked_by = first_admin.id
+
+            db.session.add(marking_sub)
+
+            # Mark token as used
+            submission_token.used = True
+            submission_token.used_at = datetime.utcnow()
+
+            db.session.commit()
+
+            return jsonify({
+                "success": True,
+                "submission_id": submission.id,
+                "user_id": user_id,
+                "user_name": user.name,
+                "challenge_id": challenge_id,
+                "challenge_name": challenge.name,
+                "flag": flag,
+                "correct": submission.correct,
+                "submitted_at": submission.date.strftime("%Y-%m-%d %H:%M:%S")
+            }), 201
+
+        except Exception as e:
+            db.session.rollback()
+            import traceback
+            app.logger.error(f"Error posting submission on behalf of user {user_id}: {str(e)}")
+            app.logger.error(traceback.format_exc())
+            return jsonify({"message": f"Failed to submit: {str(e)}"}), 500
 
     # API: Get all tutor assignments
     @app.route("/api/marking_hub/assignments", methods=["GET"])

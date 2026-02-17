@@ -12,23 +12,54 @@ Complete API reference for the CTFd Marking Hub plugin. All API endpoints requir
 
 ## Authentication
 
-All endpoints require one of the following:
+Most endpoints require one of the following:
 - **Admin user**: Full access to all endpoints
 - **Tutor user**: Limited access (marked as tutor in the system)
 - **Normal user**: Access to personal data only
+
+**Special cases:**
+- **Generate Submission Token** (`POST /api/marking_hub/submissions/generate-token`): Requires `X-Automarker-Secret` header (shared secret for automated systems)
+- **Submit on Behalf** (`POST /api/marking_hub/submissions/on-behalf-of`): No authentication required (uses secure token instead)
+
+---
+
+## Configuration
+
+### Automarker Secret
+
+To enable the automarker to generate submission tokens, set the `MARKING_HUB_AUTOMARKER_SECRET` environment variable:
+
+```bash
+export MARKING_HUB_AUTOMARKER_SECRET="your_random_secret_key_here"
+```
+
+Or in CTFd's configuration file:
+
+```python
+MARKING_HUB_AUTOMARKER_SECRET = "your_random_secret_key_here"
+```
+
+**Security best practices:**
+- Use a strong, random secret (at least 32 characters)
+- Store it in environment variables or a secure configuration file
+- Never commit it to version control
+- Rotate periodically
+- Only accessible over HTTPS
 
 ---
 
 ## Table of Contents
 
-1. [Dashboard Routes](#dashboard-routes)
-2. [Submissions](#submissions)
-3. [Assignments](#assignments)
-4. [Tutors](#tutors)
-5. [Deadlines](#deadlines)
-6. [Reports](#reports)
-7. [Statistics](#statistics)
-8. [Categories](#categories)
+1. [Authentication](#authentication)
+2. [Configuration](#configuration)
+3. [Dashboard Routes](#dashboard-routes)
+4. [Submissions](#submissions)
+5. [Assignments](#assignments)
+6. [Tutors](#tutors)
+7. [Deadlines](#deadlines)
+8. [Reports](#reports)
+9. [Statistics](#statistics)
+10. [Categories](#categories)
 
 ---
 
@@ -208,6 +239,167 @@ curl -X PUT "http://localhost:8000/api/marking_hub/submissions/1" \
 curl -X POST "http://localhost:8000/api/marking_hub/sync" \
   -H "Cookie: session=..." \
   -H "Content-Type: application/json"
+```
+
+### Generate Submission Token
+
+**Endpoint:** `POST /api/marking_hub/submissions/generate-token`
+
+**Authentication:** Shared secret in `X-Automarker-Secret` header (no session required)
+
+**Description:** Generates a secure, single-use token that allows submitting a flag on behalf of a student. The token is tied to a specific student and challenge, and includes an expiration time. Uses HMAC-SHA256 for cryptographic security. This endpoint is designed for automated systems (like autograders/automarkers) to generate submission tokens.
+
+**Request Headers:**
+```
+X-Automarker-Secret: your_shared_secret_key
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "user_id": 42,
+  "challenge_id": 5,
+  "expires_in_hours": 24
+}
+```
+
+**Parameters:**
+- `user_id` (required): ID of the student submitting the flag
+- `challenge_id` (required): ID of the challenge
+- `expires_in_hours` (optional): Hours until token expires (default: 24)
+
+**Response:**
+```json
+{
+  "token": "rg4mcA...[base64 url-safe token]...",
+  "token_id": 123,
+  "user_id": 42,
+  "user_name": "John Doe",
+  "challenge_id": 5,
+  "challenge_name": "Web Security 101",
+  "hash": "a7b2c1d4e5f6...[SHA256 hex]...",
+  "expires_at": "2026-02-18 14:30:00"
+}
+```
+
+**Errors:**
+- `400`: Missing required parameters
+- `403`: Invalid or missing automarker secret
+- `404`: User or challenge not found
+- `500`: Automarker secret not configured on server
+
+**Notes:**
+- The `token` and `hash` must both be provided when submitting the flag
+- Each token is single-use and tied to one student and one challenge
+- After token expiration, new tokens must be generated
+- The `X-Automarker-Secret` header is validated securely (timing-attack resistant)
+- `created_by` is set to `null` for system-generated tokens
+- Must be sent over HTTPS for security
+
+**Security:**
+- Tokens use HMAC-SHA256 with the Flask app's SECRET_KEY
+- Hash combines user_id, challenge_id, and the random token
+- Tokens expire and are marked as used after submission
+- Cannot be reused or modified
+- Shared secret should be stored in environment variables (`MARKING_HUB_AUTOMARKER_SECRET`)
+- Secret comparison uses timing-attack resistant comparison
+
+**Example:**
+```bash
+curl -X POST "http://localhost:8000/api/marking_hub/submissions/generate-token" \
+  -H "X-Automarker-Secret: your_shared_secret_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": 42,
+    "challenge_id": 5,
+    "expires_in_hours": 48
+  }'
+```
+
+
+### Submit Flag on Behalf of Student
+
+**Endpoint:** `POST /api/marking_hub/submissions/on-behalf-of`
+
+**Authentication:** None required (uses secure token instead)
+
+**Description:** Posts a flag submission on behalf of a student using a previously generated secure token. The flag is automatically evaluated for correctness. This endpoint creates both a standard CTFd submission and a marking submission for manual scoring.
+
+**Request Body:**
+```json
+{
+  "user_id": 42,
+  "challenge_id": 5,
+  "flag": "flag{correct_answer}",
+  "token": "rg4mcA...[base64 url-safe token]...",
+  "hash": "a7b2c1d4e5f6...[SHA256 hex]..."
+}
+```
+
+**Parameters:**
+- `user_id` (required): ID of the student
+- `challenge_id` (required): ID of the challenge
+- `flag` (required): The flag/answer being submitted
+- `token` (required): The secure token generated via `generate-token`
+- `hash` (required): The HMAC hash that validates the token
+
+**Response (201 Created):**
+```json
+{
+  "success": true,
+  "submission_id": 251,
+  "user_id": 42,
+  "user_name": "John Doe",
+  "challenge_id": 5,
+  "challenge_name": "Web Security 101",
+  "flag": "flag{correct_answer}",
+  "correct": true,
+  "submitted_at": "2026-02-17 14:30:00"
+}
+```
+
+**Errors:**
+- `400`: Missing required parameters
+- `403`: Invalid security hash, token already used, or token expired
+- `404`: Token, user, or challenge not found
+- `500`: Server error during submission processing
+
+**Notes:**
+- **Security is critical:** The hash MUST match the token cryptographically
+- Submissions are auto-evaluated using the challenge handler
+- For TECH (technical) challenges, automatic marking is applied:
+  - Full points if flag is correct
+  - Zero points if flag is incorrect
+- Non-technical submissions are created but not auto-marked (tutor marks them later)
+- Token is marked as used immediately after submission attempt
+- Tokens cannot be reused even if submission fails
+
+**Example:**
+```bash
+# First, generate a token (as admin)
+TOKEN_RESPONSE=$(curl -X POST "http://localhost:8000/api/marking_hub/submissions/generate-token" \
+  -H "Cookie: session=..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": 42,
+    "challenge_id": 5
+  }')
+
+# Extract token and hash
+TOKEN=$(echo $TOKEN_RESPONSE | jq -r '.token')
+HASH=$(echo $TOKEN_RESPONSE | jq -r '.hash')
+
+# Then submit the flag (no auth required)
+curl -X POST "http://localhost:8000/api/marking_hub/submissions/on-behalf-of" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": 42,
+    "challenge_id": 5,
+    "flag": "flag{my_answer}",
+    "token": "'$TOKEN'",
+    "hash": "'$HASH'"
+  }'
 ```
 
 ---
