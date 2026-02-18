@@ -397,6 +397,29 @@ def load(app):
             db.session.add(submission)
             db.session.flush()  # Get the submission ID
 
+            # If the submission is correct, trigger the solve event
+            if submission.correct:
+                try:
+                    from CTFd.models import Solves
+                    # Check if this user has already solved this challenge
+                    existing_solve = Solves.query.filter_by(
+                        user_id=user_id,
+                        challenge_id=challenge_id
+                    ).first()
+                    
+                    if not existing_solve:
+                        # Create a solve record
+                        solve = Solves(
+                            user_id=user_id,
+                            challenge_id=challenge_id,
+                            ip='127.0.0.1',
+                            date=datetime.utcnow()
+                        )
+                        db.session.add(solve)
+                        app.logger.info(f"Created solve record for user {user_id} on challenge {challenge_id}")
+                except Exception as e:
+                    app.logger.error(f"Error creating solve record: {str(e)}")
+
             # Create corresponding marking submission
             marking_sub = MarkingSubmission(
                 submission_id=submission.id,
