@@ -343,17 +343,22 @@ def load(app):
                 date=datetime.utcnow()
             )
             
-            # Auto-evaluate the flag
-            # Use Flask's request context to call solve
+            # Auto-evaluate the flag by checking against challenge flags
             try:
-                from CTFd.plugins.challenges import CHALLENGE_CLASSES
-                handler = CHALLENGE_CLASSES.get(challenge.type)
-                if handler:
-                    submission.correct = handler.solve(challenge, request, flag)
-                else:
-                    submission.correct = False
-            except TypeError:
-                # Fallback for handlers that don't need request
+                from CTFd.models import Flags
+                # Get all valid flags for this challenge
+                challenge_flags = Flags.query.filter_by(challenge_id=challenge_id).all()
+                submission.correct = False
+                
+                if challenge_flags:
+                    # Check if the provided flag matches any valid flag (case-insensitive, trimmed)
+                    provided_flag = flag.strip().lower() if flag else ""
+                    for challenge_flag in challenge_flags:
+                        if challenge_flag.flag.strip().lower() == provided_flag:
+                            submission.correct = True
+                            break
+            except Exception as e:
+                app.logger.error(f"Error validating flag: {str(e)}")
                 submission.correct = False
 
             db.session.add(submission)
