@@ -345,18 +345,30 @@ def load(app):
             
             # Auto-evaluate the flag by checking against challenge flags
             try:
+                import re
                 from CTFd.models import Flags
                 # Get all valid flags for this challenge
                 challenge_flags = Flags.query.filter_by(challenge_id=challenge_id).all()
                 submission.correct = False
                 
                 if challenge_flags:
-                    # Check if the provided flag matches any valid flag (case-insensitive, trimmed)
-                    provided_flag = flag.strip().lower() if flag else ""
+                    provided_flag = flag.strip() if flag else ""
                     for challenge_flag in challenge_flags:
-                        if challenge_flag.flag.strip().lower() == provided_flag:
-                            submission.correct = True
-                            break
+                        # Handle different flag types
+                        if challenge_flag.type == 'regex':
+                            # Regex flag matching
+                            try:
+                                if re.match(challenge_flag.flag, provided_flag):
+                                    submission.correct = True
+                                    break
+                            except re.error:
+                                # Invalid regex pattern, skip
+                                continue
+                        else:
+                            # Literal flag matching (case-insensitive, trimmed)
+                            if challenge_flag.flag.strip().lower() == provided_flag.lower():
+                                submission.correct = True
+                                break
             except Exception as e:
                 app.logger.error(f"Error validating flag: {str(e)}")
                 submission.correct = False
