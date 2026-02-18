@@ -357,14 +357,20 @@ def load(app):
                 
                 if challenge_flags:
                     for challenge_flag in challenge_flags:
-                        app.logger.info(f"Flag pattern: '{challenge_flag.flag}', Type: {getattr(challenge_flag, 'type', 'unknown')}")
+                        # Log all attributes to understand the data structure
+                        flag_content = getattr(challenge_flag, 'content', None)  # CTFd uses 'content' attribute
+                        flag_type = getattr(challenge_flag, 'type', 'static')
+                        
+                        app.logger.info(f"Flag content: '{flag_content}', Type: {flag_type}")
+                        
+                        if not flag_content:
+                            continue
                         
                         # Handle different flag types
-                        flag_type = getattr(challenge_flag, 'type', 'static')  # Default to static if no type
                         if flag_type == 'regex':
                             # Regex flag matching
                             try:
-                                if re.match(challenge_flag.flag, provided_flag):
+                                if re.match(flag_content, provided_flag):
                                     app.logger.info(f"Flag matched regex pattern")
                                     submission.correct = True
                                     break
@@ -373,7 +379,7 @@ def load(app):
                                 continue
                         else:
                             # Literal flag matching (case-insensitive, trimmed)
-                            if challenge_flag.flag.strip().lower() == provided_flag.lower():
+                            if flag_content.strip().lower() == provided_flag.lower():
                                 app.logger.info(f"Flag matched literal pattern")
                                 submission.correct = True
                                 break
