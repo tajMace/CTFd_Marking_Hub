@@ -411,6 +411,7 @@ def load(app):
                         # Create a solve record
                         solve = Solves(
                             user_id=user_id,
+                            team_id=user.team_id if hasattr(user, 'team_id') else None,
                             challenge_id=challenge_id,
                             ip='127.0.0.1',
                             date=datetime.utcnow()

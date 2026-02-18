@@ -121,8 +121,7 @@ class MarkingSubmission(db.Model):
             "submissionId": sub.id,
             "userId": sub.user_id,
             "challengeId": sub.challenge_id,
-            "name": user.name if user else "Unknown",
-            "zid": user.email.split("@")[0] if user and "@" in user.email else "N/A",
+            "name": user.name if user and user.name else "Unknown",
             "submittedAt": sub.date.strftime("%Y-%m-%d %H:%M:%S") if sub.date else None,
             "flag": sub.provided,  # The submitted flag/answer
             "challenge": challenge.name if challenge else "Unknown",
