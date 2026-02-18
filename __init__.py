@@ -340,8 +340,7 @@ def load(app):
                 challenge_id=challenge_id,
                 ip='127.0.0.1',  # Internal submission
                 provided=flag,
-                date=datetime.utcnow(),
-                type='standard'  # Required for polymorphic discriminator
+                date=datetime.utcnow()
             )
             
             # Auto-evaluate the flag by checking against challenge flags
