@@ -340,45 +340,35 @@ def load(app):
         challenge = Challenges.query.filter_by(id=challenge_id).first_or_404()
 
         try:
-            # Create submission in CTFd
-            submission = Submissions(
-                user_id=user_id,
-                team_id=user.team_id if hasattr(user, 'team_id') else None,
-                challenge_id=challenge_id,
-                ip='127.0.0.1',  # Internal submission
-                provided=provided_flag,
-                date=datetime.utcnow()
-            )
-            
             # Auto-evaluate the flag by checking against challenge flags
             try:
                 import re
                 from CTFd.models import Flags
                 # Get all valid flags for this challenge
                 challenge_flags = Flags.query.filter_by(challenge_id=challenge_id).all()
-                submission.correct = False
-                
+                is_correct = False
+
                 app.logger.info(f"Validating flag for challenge {challenge_id}: '{provided_flag}'")
                 app.logger.info(f"Found {len(challenge_flags)} flags for challenge")
-                
+
                 if challenge_flags:
                     for challenge_flag in challenge_flags:
                         # Log all attributes to understand the data structure
                         flag_content = getattr(challenge_flag, 'content', None)  # CTFd uses 'content' attribute
                         flag_type = getattr(challenge_flag, 'type', 'static')
-                        
+
                         app.logger.info(f"Flag content: '{flag_content}', Type: {flag_type}")
-                        
+
                         if not flag_content:
                             continue
-                        
+
                         # Handle different flag types
                         if flag_type == 'regex':
                             # Regex flag matching
                             try:
                                 if re.match(flag_content, provided_flag):
-                                    app.logger.info(f"Flag matched regex pattern")
-                                    submission.correct = True
+                                    app.logger.info("Flag matched regex pattern")
+                                    is_correct = True
                                     break
                             except re.error as e:
                                 app.logger.error(f"Invalid regex pattern: {str(e)}")
@@ -386,46 +376,41 @@ def load(app):
                         else:
                             # Literal flag matching (case-insensitive, trimmed)
                             if flag_content.strip().lower() == provided_flag.lower():
-                                app.logger.info(f"Flag matched literal pattern")
-                                submission.correct = True
+                                app.logger.info("Flag matched literal pattern")
+                                is_correct = True
                                 break
-                
-                app.logger.info(f"Final result: correct={submission.correct}")
-                # Set the type based on correctness
-                submission.type = 'correct' if submission.correct else 'incorrect'
+
+                app.logger.info(f"Final result: correct={is_correct}")
             except Exception as e:
                 app.logger.error(f"Error validating flag: {str(e)}")
                 import traceback
                 app.logger.error(traceback.format_exc())
-                submission.correct = False
-                submission.type = 'incorrect'
+                is_correct = False
+
+            # Create submission in CTFd
+            if is_correct:
+                from CTFd.models import Solves
+                submission = Solves(
+                    user_id=user_id,
+                    team_id=user.team_id if hasattr(user, 'team_id') else None,
+                    challenge_id=challenge_id,
+                    ip='127.0.0.1',  # Internal submission
+                    provided=provided_flag,
+                    date=datetime.utcnow()
+                )
+            else:
+                from CTFd.models import Fails
+                submission = Fails(
+                    user_id=user_id,
+                    team_id=user.team_id if hasattr(user, 'team_id') else None,
+                    challenge_id=challenge_id,
+                    ip='127.0.0.1',  # Internal submission
+                    provided=provided_flag,
+                    date=datetime.utcnow()
+                )
 
             db.session.add(submission)
             db.session.flush()  # Get the submission ID
-
-            # If the submission is correct, trigger the solve event
-            if submission.correct:
-                try:
-                    from CTFd.models import Solves
-                    # Check if this user has already solved this challenge
-                    existing_solve = Solves.query.filter_by(
-                        user_id=user_id,
-                        challenge_id=challenge_id
-                    ).first()
-                    
-                    if not existing_solve:
-                        # Create a solve record
-                        solve = Solves(
-                            user_id=user_id,
-                            team_id=user.team_id if hasattr(user, 'team_id') else None,
-                            challenge_id=challenge_id,
-                            ip='127.0.0.1',
-                            date=datetime.utcnow()
-                        )
-                        db.session.add(solve)
-                        app.logger.info(f"Created solve record for user {user_id} on challenge {challenge_id}")
-                except Exception as e:
-                    app.logger.error(f"Error creating solve record: {str(e)}")
 
             # Create corresponding marking submission
             marking_sub = MarkingSubmission(
@@ -437,7 +422,7 @@ def load(app):
             # Auto-mark TECH submissions
             if _is_technical_challenge(challenge):
                 challenge_max = challenge.value if challenge else 100
-                marking_sub.mark = challenge_max if submission.correct else 0
+                marking_sub.mark = challenge_max if is_correct else 0
                 marking_sub.marked_at = datetime.utcnow()
 
             db.session.add(marking_sub)
@@ -456,7 +441,7 @@ def load(app):
                 "challenge_id": challenge_id,
                 "challenge_name": challenge.name,
                 "flag": flag,
-                "correct": submission.correct,
+                "correct": is_correct,
                 "submitted_at": submission.date.strftime("%Y-%m-%d %H:%M:%S")
             }), 201
 
