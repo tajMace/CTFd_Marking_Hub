@@ -350,27 +350,39 @@ def load(app):
                 # Get all valid flags for this challenge
                 challenge_flags = Flags.query.filter_by(challenge_id=challenge_id).all()
                 submission.correct = False
+                provided_flag = flag.strip() if flag else ""
+                
+                app.logger.info(f"Validating flag for challenge {challenge_id}: '{provided_flag}'")
+                app.logger.info(f"Found {len(challenge_flags)} flags for challenge")
                 
                 if challenge_flags:
-                    provided_flag = flag.strip() if flag else ""
                     for challenge_flag in challenge_flags:
+                        app.logger.info(f"Flag pattern: '{challenge_flag.flag}', Type: {getattr(challenge_flag, 'type', 'unknown')}")
+                        
                         # Handle different flag types
-                        if challenge_flag.type == 'regex':
+                        flag_type = getattr(challenge_flag, 'type', 'static')  # Default to static if no type
+                        if flag_type == 'regex':
                             # Regex flag matching
                             try:
                                 if re.match(challenge_flag.flag, provided_flag):
+                                    app.logger.info(f"Flag matched regex pattern")
                                     submission.correct = True
                                     break
-                            except re.error:
-                                # Invalid regex pattern, skip
+                            except re.error as e:
+                                app.logger.error(f"Invalid regex pattern: {str(e)}")
                                 continue
                         else:
                             # Literal flag matching (case-insensitive, trimmed)
                             if challenge_flag.flag.strip().lower() == provided_flag.lower():
+                                app.logger.info(f"Flag matched literal pattern")
                                 submission.correct = True
                                 break
+                
+                app.logger.info(f"Final result: correct={submission.correct}")
             except Exception as e:
                 app.logger.error(f"Error validating flag: {str(e)}")
+                import traceback
+                app.logger.error(traceback.format_exc())
                 submission.correct = False
 
             db.session.add(submission)
