@@ -296,6 +296,13 @@ def load(app):
         if not all([user_id, challenge_id, flag, token, token_hash]):
             return jsonify({"message": "user_id, challenge_id, flag, token, and hash are required"}), 400
 
+        if not isinstance(flag, str):
+            return jsonify({"message": "flag must be a string"}), 400
+
+        provided_flag = flag.strip()
+        if not provided_flag:
+            return jsonify({"message": "flag cannot be empty"}), 400
+
         # Verify the token
         secret = app.config.get('MARKING_HUB_AUTOMARKER_SECRET')
         if not secret:
@@ -339,7 +346,7 @@ def load(app):
                 team_id=user.team_id if hasattr(user, 'team_id') else None,
                 challenge_id=challenge_id,
                 ip='127.0.0.1',  # Internal submission
-                provided=flag,
+                provided=provided_flag,
                 date=datetime.utcnow()
             )
             
@@ -350,7 +357,6 @@ def load(app):
                 # Get all valid flags for this challenge
                 challenge_flags = Flags.query.filter_by(challenge_id=challenge_id).all()
                 submission.correct = False
-                provided_flag = flag.strip() if flag else ""
                 
                 app.logger.info(f"Validating flag for challenge {challenge_id}: '{provided_flag}'")
                 app.logger.info(f"Found {len(challenge_flags)} flags for challenge")
