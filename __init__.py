@@ -367,9 +367,6 @@ def load(app):
                 challenge_max = challenge.value if challenge else 100
                 marking_sub.mark = challenge_max if submission.correct else 0
                 marking_sub.marked_at = datetime.utcnow()
-                first_admin = Users.query.filter_by(admin=True).order_by(Users.id).first()
-                if first_admin:
-                    marking_sub.marked_by = first_admin.id
 
             db.session.add(marking_sub)
 
