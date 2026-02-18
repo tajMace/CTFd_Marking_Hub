@@ -163,7 +163,13 @@ def load(app):
 
         for sub in all_submissions:
             existing = MarkingSubmission.query.filter_by(submission_id=sub.id).first()
-            
+
+            # Determine correctness by type
+            is_correct = getattr(sub, 'correct', None)
+            if is_correct is None:
+                # Fails/incorrect submissions do not have .correct, but type is 'incorrect'
+                is_correct = getattr(sub, 'type', None) == 'correct'
+
             if not existing:
                 # Create new marking submission
                 marking_sub = MarkingSubmission(
@@ -171,25 +177,25 @@ def load(app):
                     mark=None,
                     comment=None
                 )
-                
+
                 # Auto-mark TECH submissions based on correctness
                 if _is_technical_challenge(sub.challenge):
                     challenge_max = sub.challenge.value if sub.challenge else 100
-                    marking_sub.mark = challenge_max if sub.correct else 0
+                    marking_sub.mark = challenge_max if is_correct else 0
                     marking_sub.marked_at = datetime.utcnow()
                     # Mark as auto-marked by system (get first admin user)
                     first_admin = Users.query.filter_by(admin=True).order_by(Users.id).first()
                     if first_admin:
                         marking_sub.marked_by = first_admin.id
                     auto_marked += 1
-                
+
                 db.session.add(marking_sub)
                 synced += 1
             else:
                 # Update existing TECH submissions if correctness changed
                 if _is_technical_challenge(sub.challenge):
                     challenge_max = sub.challenge.value if sub.challenge else 100
-                    new_mark = challenge_max if sub.correct else 0
+                    new_mark = challenge_max if is_correct else 0
                     # Update mark if it differs from current (student may have submitted correct flag after initial rejection)
                     if existing.mark != new_mark:
                         existing.mark = new_mark
