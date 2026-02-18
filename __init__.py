@@ -385,11 +385,14 @@ def load(app):
                                 break
                 
                 app.logger.info(f"Final result: correct={submission.correct}")
+                # Set the type based on correctness
+                submission.type = 'correct' if submission.correct else 'incorrect'
             except Exception as e:
                 app.logger.error(f"Error validating flag: {str(e)}")
                 import traceback
                 app.logger.error(traceback.format_exc())
                 submission.correct = False
+                submission.type = 'incorrect'
 
             db.session.add(submission)
             db.session.flush()  # Get the submission ID
