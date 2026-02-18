@@ -241,8 +241,10 @@ def load(app):
         random_token = secrets.token_urlsafe(32)
         
         # Create HMAC hash (this is what the client will send back)
-        # Use Flask secret key for signing
-        secret = app.config.get('SECRET_KEY', 'default-secret-key')
+        # Use automarker secret key for signing (must be stable)
+        secret = app.config.get('MARKING_HUB_AUTOMARKER_SECRET')
+        if not secret:
+            return jsonify({"message": "Automarker secret not configured on server"}), 500
         secret_bytes = secret.encode() if isinstance(secret, str) else secret
         token_hash = hmac.new(
             secret_bytes,
@@ -295,7 +297,9 @@ def load(app):
             return jsonify({"message": "user_id, challenge_id, flag, token, and hash are required"}), 400
 
         # Verify the token
-        secret = app.config.get('SECRET_KEY', 'default-secret-key')
+        secret = app.config.get('MARKING_HUB_AUTOMARKER_SECRET')
+        if not secret:
+            return jsonify({"message": "Automarker secret not configured on server"}), 500
         secret_bytes = secret.encode() if isinstance(secret, str) else secret
         expected_hash = hmac.new(
             secret_bytes,
