@@ -501,14 +501,24 @@ def load(app):
             return jsonify({"message": "Forbidden"}), 403
 
         results = []
-        for student in user.students:
-            assigned_at = None
-            for row in db.session.execute(
-                "SELECT assigned_at FROM marking_assignments WHERE student_id = :sid AND tutor_id = :tid",
-                {"sid": student.id, "tid": user.id}
-            ):
-                assigned_at = row[0]
-            results.append(MarkingAssignmentHelper(student, user, assigned_at).to_dict())
+        from CTFd.models import Users
+        # Query all assignments for this tutor
+        rows = db.session.execute(
+            "SELECT student_id, assigned_at FROM marking_assignments WHERE tutor_id = :tid",
+            {"tid": user.id}
+        ).fetchall()
+        for row in rows:
+            student = Users.query.get(row[0])
+            if student:
+                results.append({
+                    "userId": student.id,
+                    "userName": student.name,
+                    "userEmail": student.email,
+                    "assignedAt": row[1].strftime("%Y-%m-%d %H:%M:%S") if row[1] else None,
+                    "tutorId": user.id,
+                    "tutorName": user.name,
+                    "tutorEmail": user.email
+                })
         return jsonify(results)
 
 
