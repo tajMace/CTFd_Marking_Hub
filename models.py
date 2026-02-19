@@ -1,34 +1,45 @@
 from CTFd.models import db
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, UniqueConstraint, Boolean
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, UniqueConstraint, Boolean, Table
+from sqlalchemy.orm import relationship, backref
 from datetime import datetime
 
 
-class MarkingAssignment(db.Model):
-    """
-    Assigns a registered user to a specific admin/tutor.
-    One user can be assigned to at most one tutor.
-    """
-    __tablename__ = "marking_assignments"
-    __table_args__ = (UniqueConstraint("user_id", name="uq_marking_assignments_user_id"),)
 
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    tutor_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    assigned_at = Column(DateTime, nullable=True)
+# Association table for many-to-many tutor-student assignments
+marking_assignments = Table(
+    "marking_assignments",
+    db.Model.metadata,
+    Column("student_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("tutor_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("assigned_at", DateTime, nullable=True, default=datetime.utcnow)
+)
 
-    user = relationship("Users", foreign_keys=[user_id], lazy="joined")
-    tutor = relationship("Users", foreign_keys=[tutor_id], lazy="joined")
+# Extend Users model with relationships for tutors and students
+from CTFd.models import Users
+Users.tutors = relationship(
+    "Users",
+    secondary=marking_assignments,
+    primaryjoin=Users.id == marking_assignments.c.student_id,
+    secondaryjoin=Users.id == marking_assignments.c.tutor_id,
+    backref=backref("students", lazy="dynamic"),
+    lazy="dynamic"
+)
+
+# Helper class for API compatibility (not a real table)
+class MarkingAssignmentHelper:
+    def __init__(self, student, tutor, assigned_at=None):
+        self.student = student
+        self.tutor = tutor
+        self.assigned_at = assigned_at
 
     def to_dict(self):
         return {
-            "id": self.id,
-            "userId": self.user_id,
-            "userName": self.user.name if self.user else None,
-            "userEmail": self.user.email if self.user else None,
-            "tutorId": self.tutor_id,
-            "tutorName": self.tutor.name if self.tutor else None,
-            "tutorEmail": self.tutor.email if self.tutor else None,
+            "studentId": self.student.id,
+            "studentName": self.student.name,
+            "studentEmail": self.student.email,
+            "tutorId": self.tutor.id,
+            "tutorName": self.tutor.name,
+            "tutorEmail": self.tutor.email,
             "assignedAt": self.assigned_at.strftime("%Y-%m-%d %H:%M:%S") if self.assigned_at else None,
         }
 
@@ -112,7 +123,15 @@ class MarkingSubmission(db.Model):
         sub = self.submission
         user = sub.user
         challenge = sub.challenge
-        assignment = MarkingAssignment.query.filter_by(user_id=sub.user_id).first()
+        # Get all tutors for this student (user)
+        tutors = []
+        if user:
+            for tutor in user.tutors:
+                tutors.append({
+                    "tutorId": tutor.id,
+                    "tutorName": tutor.name,
+                    "tutorEmail": tutor.email
+                })
         challenge_name = challenge.name if challenge else ""
         is_technical = challenge_name.lstrip().upper().startswith("TECH")
 
@@ -135,8 +154,7 @@ class MarkingSubmission(db.Model):
             "comment": self.comment,
             "markedAt": self.marked_at.strftime("%Y-%m-%d %H:%M:%S") if self.marked_at else None,
             "markedBy": self.marker.name if self.marker else None,
-            "assignedTutorId": assignment.tutor_id if assignment else None,
-            "assignedTutorName": assignment.tutor.name if assignment and assignment.tutor else None,
+            "assignedTutors": tutors,
         }
 
 

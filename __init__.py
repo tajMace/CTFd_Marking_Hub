@@ -4,7 +4,7 @@ from CTFd.models import db, Users
 from CTFd.utils.decorators import admins_only, authed_only
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.plugins import bypass_csrf_protection
-from .models import MarkingSubmission, MarkingAssignment, MarkingTutor, MarkingDeadline, StudentReport, SubmissionToken
+from .models import MarkingSubmission, MarkingAssignmentHelper, MarkingTutor, MarkingDeadline, StudentReport, SubmissionToken
 from .utils.report_generator import generate_and_send_student_report, generate_weekly_reports, get_available_categories
 from .utils.pdf_generator import generate_student_report_pdf
 from datetime import datetime
@@ -71,10 +71,9 @@ def load(app):
         if not _is_tutor(user.id):
             return jsonify({"message": "Forbidden"}), 403
 
-        assigned_user_ids = [
-            row.user_id
-            for row in MarkingAssignment.query.filter_by(tutor_id=user.id).all()
-        ]
+
+        # Get all students assigned to this tutor (many-to-many)
+        assigned_user_ids = [student.id for student in user.students]
 
         if not assigned_user_ids:
             return jsonify([])
@@ -105,12 +104,10 @@ def load(app):
         if not _is_tutor(user.id):
             return jsonify({"message": "Forbidden"}), 403
 
-        assignment = MarkingAssignment.query.filter_by(
-            user_id=submission.submission.user_id,
-            tutor_id=user.id,
-        ).first()
 
-        if assignment is None:
+        # Check if this tutor is assigned to the student
+        student = Users.query.get(submission.submission.user_id)
+        if not student or user not in student.tutors:
             return jsonify({"message": "Forbidden"}), 403
 
         return jsonify(submission.to_dict())
@@ -131,12 +128,9 @@ def load(app):
             if not _is_tutor(user.id):
                 return jsonify({"message": "Forbidden"}), 403
 
-            assignment = MarkingAssignment.query.filter_by(
-                user_id=submission.submission.user_id,
-                tutor_id=user.id,
-            ).first()
 
-            if assignment is None:
+            student = Users.query.get(submission.submission.user_id)
+            if not student or user not in student.tutors:
                 return jsonify({"message": "Forbidden"}), 403
 
         data = request.get_json()
@@ -184,9 +178,9 @@ def load(app):
                     marking_sub.mark = challenge_max if is_correct else 0
                     marking_sub.marked_at = datetime.utcnow()
                     # Mark as auto-marked by system (get first admin user)
-                    first_admin = Users.query.filter_by(admin=True).order_by(Users.id).first()
-                    if first_admin:
-                        marking_sub.marked_by = first_admin.id
+                    autotest_user = Users.query.filter_by(id=6).first()
+                    if autotest_user:
+                        marking_sub.marked_by = autotest_user.id
                     auto_marked += 1
 
                 db.session.add(marking_sub)
@@ -200,7 +194,7 @@ def load(app):
                     if existing.mark != new_mark:
                         existing.mark = new_mark
                         existing.marked_at = datetime.utcnow()
-                        first_admin = Users.query.filter_by(admin=True).order_by(Users.id).first()
+                        first_admin = Users.query.filter_by(type="admin").order_by(Users.id).first()
                         if first_admin:
                             existing.marked_by = first_admin.id
                         db.session.add(existing)
@@ -458,23 +452,46 @@ def load(app):
             app.logger.error(traceback.format_exc())
             return jsonify({"message": f"Failed to submit: {str(e)}"}), 500
 
-    # API: Get all tutor assignments
+
+    # API: Get all tutor assignments (many-to-many)
     @app.route("/api/marking_hub/assignments", methods=["GET"])
     @admins_only
     def get_marking_assignments():
-        assignments = MarkingAssignment.query.all()
-        return jsonify([assignment.to_dict() for assignment in assignments])
+        users = Users.query.all()
+        results = []
+        for student in users:
+            for tutor in student.tutors:
+                # Find assigned_at from association table
+                assigned_at = None
+                for row in db.session.execute(
+                    "SELECT assigned_at FROM marking_assignments WHERE student_id = :sid AND tutor_id = :tid",
+                    {"sid": student.id, "tid": tutor.id}
+                ):
+                    assigned_at = row[0]
+                results.append(MarkingAssignmentHelper(student, tutor, assigned_at).to_dict())
+        return jsonify(results)
 
-    # API: Get assignment for a specific user
+
+    # API: Get all tutors for a specific student
     @app.route("/api/marking_hub/assignments/<int:user_id>", methods=["GET"])
     @admins_only
     def get_marking_assignment(user_id):
-        assignment = MarkingAssignment.query.filter_by(user_id=user_id).first()
-        if not assignment:
-            return jsonify({"message": "Assignment not found"}), 404
-        return jsonify(assignment.to_dict())
+        student = Users.query.get_or_404(user_id)
+        results = []
+        for tutor in student.tutors:
+            assigned_at = None
+            for row in db.session.execute(
+                "SELECT assigned_at FROM marking_assignments WHERE student_id = :sid AND tutor_id = :tid",
+                {"sid": student.id, "tid": tutor.id}
+            ):
+                assigned_at = row[0]
+            results.append(MarkingAssignmentHelper(student, tutor, assigned_at).to_dict())
+        if not results:
+            return jsonify({"message": "No tutors assigned"}), 404
+        return jsonify(results)
 
-    # API: Get assignments for the current tutor
+
+    # API: Get all students assigned to the current tutor
     @app.route("/api/marking_hub/assignments/mine", methods=["GET"])
     @authed_only
     def get_marking_assignments_for_current_tutor():
@@ -483,46 +500,65 @@ def load(app):
         if not is_admin() and not _is_tutor(user.id):
             return jsonify({"message": "Forbidden"}), 403
 
-        assignments = MarkingAssignment.query.filter_by(tutor_id=user.id).all()
-        return jsonify([assignment.to_dict() for assignment in assignments])
+        results = []
+        for student in user.students:
+            assigned_at = None
+            for row in db.session.execute(
+                "SELECT assigned_at FROM marking_assignments WHERE student_id = :sid AND tutor_id = :tid",
+                {"sid": student.id, "tid": user.id}
+            ):
+                assigned_at = row[0]
+            results.append(MarkingAssignmentHelper(student, user, assigned_at).to_dict())
+        return jsonify(results)
 
-    # API: Assign or update tutor for a user
+
+    # API: Assign or update tutors for a user (student)
     @app.route("/api/marking_hub/assignments/<int:user_id>", methods=["PUT"])
     @admins_only
     @bypass_csrf_protection
     def set_marking_assignment(user_id):
         data = request.get_json() or {}
-        tutor_id = data.get("tutor_id")
+        tutor_ids = data.get("tutor_ids", [])
+        student = Users.query.filter_by(id=user_id).first_or_404()
 
-        user = Users.query.filter_by(id=user_id).first_or_404()
-
-        tutor = None
-        if tutor_id is not None:
-            tutor = Users.query.filter_by(id=tutor_id).first_or_404()
-            if tutor.type != "admin" and not _is_tutor(tutor.id):
-                return jsonify({"message": "Tutor must be a marked tutor or admin"}), 400
-
-        assignment = MarkingAssignment.query.filter_by(user_id=user.id).first()
-        if assignment is None:
-            assignment = MarkingAssignment(user_id=user.id)
-            db.session.add(assignment)
-
-        assignment.tutor_id = tutor.id if tutor else None
-        assignment.assigned_at = datetime.utcnow() if tutor else None
-
+        # Remove all current tutors
+        student.tutors = []
         db.session.commit()
-        return jsonify(assignment.to_dict())
 
-    # API: Remove tutor assignment for a user
+        # Add new tutors
+        for tid in tutor_ids:
+            tutor = Users.query.filter_by(id=tid).first()
+            if tutor and (tutor.type == "admin" or _is_tutor(tutor.id)):
+                student.tutors.append(tutor)
+                # Set assigned_at in association table
+                db.session.execute(
+                    "UPDATE marking_assignments SET assigned_at = :assigned_at WHERE student_id = :sid AND tutor_id = :tid",
+                    {"assigned_at": datetime.utcnow(), "sid": student.id, "tid": tutor.id}
+                )
+        db.session.commit()
+
+        # Return updated assignments
+        results = []
+        for tutor in student.tutors:
+            assigned_at = None
+            for row in db.session.execute(
+                "SELECT assigned_at FROM marking_assignments WHERE student_id = :sid AND tutor_id = :tid",
+                {"sid": student.id, "tid": tutor.id}
+            ):
+                assigned_at = row[0]
+            results.append(MarkingAssignmentHelper(student, tutor, assigned_at).to_dict())
+        return jsonify(results)
+
+
+    # API: Remove all tutor assignments for a user (student)
     @app.route("/api/marking_hub/assignments/<int:user_id>", methods=["DELETE"])
     @admins_only
     @bypass_csrf_protection
     def delete_marking_assignment(user_id):
-        assignment = MarkingAssignment.query.filter_by(user_id=user_id).first()
-        if assignment:
-            db.session.delete(assignment)
-            db.session.commit()
-        return jsonify({"message": "Assignment removed"})
+        student = Users.query.filter_by(id=user_id).first_or_404()
+        student.tutors = []
+        db.session.commit()
+        return jsonify({"message": "All tutor assignments removed"})
 
     # API: List tutors
     @app.route("/api/marking_hub/tutors", methods=["GET"])
@@ -833,11 +869,9 @@ def load(app):
                 if not _is_tutor(user.id):
                     return jsonify({"message": "Forbidden"}), 403
                 
-                assigned_user_ids = [
-                    row.user_id
-                    for row in MarkingAssignment.query.filter_by(tutor_id=user.id).all()
-                ]
-                
+
+                # Use new many-to-many relationship
+                assigned_user_ids = [student.id for student in user.students]
                 if not assigned_user_ids:
                     return jsonify({
                         "success": True,

@@ -133,7 +133,7 @@ def generate_and_send_student_report(user_id, triggered_by_user_id=None, categor
         
         # Fall back to production URL if nothing else available
         if not base_url:
-            base_url = 'http://3.107.58.138:1337'
+            base_url = 'https://ctfd.quang.tech'
         else:
             # Remove trailing slash if present
             base_url = base_url.rstrip('/')
