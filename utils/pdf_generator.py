@@ -114,10 +114,10 @@ def generate_student_report_pdf(student_name, student_email, submissions, ctf_na
         # Calculate average as percentage
         if marked > 0:
             percentages = [
-                (s.get('mark', 0) / s.get('challengeValue', 100)) * 100
+                (s.get('mark', 0) / s.get('challengeValue', 100)) * 100 if s.get('challengeValue', 100) != 0 else 0
                 for s in marked_subs
             ]
-            avg_mark = sum(percentages) / len(percentages)
+            avg_mark = sum(percentages) / len(percentages) if len(percentages) > 0 else 0
         else:
             avg_mark = 0
 
@@ -159,7 +159,7 @@ def generate_student_report_pdf(student_name, student_email, submissions, ctf_na
 
             # Calculate percentage
             if mark is not None:
-                percentage = (mark / challenge_value) * 100
+                percentage = (mark / challenge_value) * 100 if challenge_value else 0
                 mark_text = f"{mark_name} ({percentage:.1f}%)"
                 mark_color = HexColor('#27ae60') if percentage >= 70 else HexColor('#e74c3c')
             else:

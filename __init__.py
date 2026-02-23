@@ -994,15 +994,15 @@ def load(app):
                         submission = Submissions.query.get(s.submission_id)
                         if submission and submission.challenge:
                             challenge_value = submission.challenge.value or 100
-                            percentage = (s.mark / challenge_value) * 100
+                            percentage = (s.mark / challenge_value) * 100 if challenge_value else 0
                             percentages.append(percentage)
                 
-                avg_mark = sum(percentages) / len(percentages) if percentages else 0
+                avg_mark = sum(percentages) / len(percentages) if percentages and len(percentages) > 0 else 0
                 
                 # Calculate standard deviation
                 std_dev = 0
                 if len(percentages) > 1:
-                    variance = sum((x - avg_mark) ** 2 for x in percentages) / len(percentages)
+                    variance = sum((x - avg_mark) ** 2 for x in percentages) / len(percentages) if len(percentages) > 0 else 0
                     std_dev = round(variance ** 0.5, 1)
                 
                 # Get last marked date
@@ -1043,15 +1043,15 @@ def load(app):
                     unique_marked.add((submission.user_id, submission.challenge_id))
                     if marking_sub.mark is not None and submission.challenge:
                         challenge_value = submission.challenge.value or 100
-                        percentage = (marking_sub.mark / challenge_value) * 100
+                        percentage = (marking_sub.mark / challenge_value) * 100 if challenge_value else 0
                         percentages_global.append(percentage)
             
-            avg_mark_overall = sum(percentages_global) / len(percentages_global) if percentages_global else 0
+            avg_mark_overall = sum(percentages_global) / len(percentages_global) if percentages_global and len(percentages_global) > 0 else 0
             
             global_stats = {
                 "total_submitted": len(unique_solutions),
                 "total_marked": len(unique_marked),
-                "marking_percentage": round((len(unique_marked) / len(unique_solutions) * 100) if unique_solutions else 0, 1),
+                "marking_percentage": round((len(unique_marked) / len(unique_solutions) * 100) if unique_solutions and len(unique_solutions) > 0 else 0, 1),
                 "avg_mark_overall": round(avg_mark_overall, 1),
             }
             
@@ -1111,17 +1111,17 @@ def load(app):
                         unique_marked.add((submission.user_id, submission.challenge_id))
                     if marking_sub.mark is not None and submission and submission.challenge:
                         challenge_value = submission.challenge.value or 100
-                        percentage = (marking_sub.mark / challenge_value) * 100
+                        percentage = (marking_sub.mark / challenge_value) * 100 if challenge_value else 0
                         percentages.append(percentage)
                 
                 # Calculate stats for this category
-                avg_mark = sum(percentages) / len(percentages) if percentages else 0
+                avg_mark = sum(percentages) / len(percentages) if percentages and len(percentages) > 0 else 0
                 
                 category_stats.append({
                     "category": category,
                     "total_submitted": len(unique_solutions),
                     "total_marked": len(unique_marked),
-                    "marking_percentage": round((len(unique_marked) / len(unique_solutions) * 100) if unique_solutions else 0, 1),
+                    "marking_percentage": round((len(unique_marked) / len(unique_solutions) * 100) if unique_solutions and len(unique_solutions) > 0 else 0, 1),
                     "avg_mark": round(avg_mark, 1),
                 })
             
@@ -1181,10 +1181,10 @@ def load(app):
                         unique_marked_students.add(submission.user_id)
                     if marking_sub.mark is not None:
                         challenge_value = challenge.value or 100
-                        percentage = (marking_sub.mark / challenge_value) * 100
+                        percentage = (marking_sub.mark / challenge_value) * 100 if challenge_value else 0
                         percentages.append(percentage)
                 
-                avg_mark = sum(percentages) / len(percentages) if percentages else 0
+                avg_mark = sum(percentages) / len(percentages) if percentages and len(percentages) > 0 else 0
                 
                 # Per-tutor breakdown
                 per_tutor_marks = []
@@ -1201,10 +1201,10 @@ def load(app):
                     for ms in tutor_marking_subs:
                         if ms.mark is not None:
                             challenge_value = challenge.value or 100
-                            percentage = (ms.mark / challenge_value) * 100
+                            percentage = (ms.mark / challenge_value) * 100 if challenge_value else 0
                             tutor_percentages.append(percentage)
                     
-                    tutor_avg_mark = sum(tutor_percentages) / len(tutor_percentages) if tutor_percentages else None
+                    tutor_avg_mark = sum(tutor_percentages) / len(tutor_percentages) if tutor_percentages and len(tutor_percentages) > 0 else None
                     
                     if tutor_percentages:  # Only include tutors who marked this exercise
                         per_tutor_marks.append({
@@ -1219,7 +1219,7 @@ def load(app):
                     "challenge_name": challenge.name,
                     "total_submitted": len(unique_students),
                     "total_marked": len(unique_marked_students),
-                    "marking_percentage": round((len(unique_marked_students) / len(unique_students) * 100) if unique_students else 0, 1),
+                    "marking_percentage": round((len(unique_marked_students) / len(unique_students) * 100) if unique_students and len(unique_students) > 0 else 0, 1),
                     "avg_mark": round(avg_mark, 1),
                     "per_tutor": sorted(per_tutor_marks, key=lambda x: x["tutor_name"]),
                 })
