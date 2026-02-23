@@ -172,13 +172,17 @@ Marked: {sum(1 for s in submissions if s['mark'] is not None)}
 Summary:
 """
         for s in submissions[:10]:
-            mark = s['mark']
-            challenge_value = s.get('challengeValue', 100)
-            if challenge_value == 0:
-                email_text += f"\n- {s['challenge']}: {mark}/{challenge_value} (0%)"
-            else:
-                percentage = (mark / challenge_value) * 100
-                email_text += f"\n- {s['challenge']}: {mark}/{challenge_value} ({percentage:.1f}%)"
+            mark_name = s.get('mark_name', str(s.get('mark')))
+            email_text += f"\n- {s['challenge']}: {mark_name}"
+
+        # Calculate overall percentage for all exercises
+        total_marks = sum(s['mark'] for s in submissions if s['mark'] is not None)
+        total_possible = sum(s.get('challengeValue', 100) for s in submissions)
+        if total_possible > 0:
+            overall_percentage = (total_marks / total_possible) * 100
+            email_text += f"\n\nOverall Homework Percentage: {overall_percentage:.1f}%"
+        else:
+            email_text += f"\n\nOverall Homework Percentage: N/A"
         
         email_text += f"""
 
