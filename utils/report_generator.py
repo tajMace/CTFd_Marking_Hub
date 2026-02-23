@@ -298,3 +298,27 @@ def generate_weekly_reports(category=None):
     category_label = f" for {category}" if category else ""
     logger.info(f"Reports generated{category_label}: {results['sent']} sent, {results['failed']} failed")
     return results
+
+
+def fix_tutor_allocation_and_update_marks():
+    # Step 1: Clear existing tutor-student assignments
+    db.session.execute("DELETE FROM marking_assignments")
+
+    # Step 2: Assign specific tutors to students (example logic)
+    tutors = Users.query.filter_by(type="tutor").all()
+    students = Users.query.filter_by(type="student").all()
+
+    for i, student in enumerate(students):
+        tutor = tutors[i % len(tutors)]  # Round-robin assignment
+        db.session.execute(
+            "INSERT INTO marking_assignments (student_id, tutor_id, assigned_at) VALUES (:student_id, :tutor_id, :assigned_at)",
+            {"student_id": student.id, "tutor_id": tutor.id, "assigned_at": datetime.utcnow()}
+        )
+
+    # Step 3: Update maximum marks for all exercises
+    db.session.execute("UPDATE exercises SET max_mark = 100")
+
+    # Commit changes
+    db.session.commit()
+
+    print("Tutor allocation fixed and maximum marks updated.")
