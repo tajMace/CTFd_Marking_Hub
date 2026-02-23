@@ -135,7 +135,24 @@ def load(app):
 
         data = request.get_json()
 
-        submission.mark = data.get('mark')
+        # Map mark string to percentage
+        mark_map = {
+            'incomplete': 0,
+            'attempted': 30,
+            'okay': 60,
+            'great': 90,
+            'hof': 100,
+        }
+        mark_val = data.get('mark')
+        mark_percent = mark_map.get(mark_val, None)
+        if mark_percent is None:
+            # fallback: try to parse as int (for legacy)
+            try:
+                mark_percent = int(mark_val)
+            except Exception:
+                return jsonify({'message': 'Invalid mark value'}), 400
+
+        submission.mark = mark_percent
         submission.comment = data.get('comment')
         submission.marked_at = datetime.utcnow()
         submission.marked_by = user.id

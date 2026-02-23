@@ -130,6 +130,14 @@ def generate_student_report_pdf(student_name, student_email, submissions, ctf_na
         content.append(Spacer(1, 0.2*inch))
     
     def render_submissions_section(section_title, section_submissions):
+        # Mark percentage to name mapping
+        percent_to_name = {
+            0: "Incomplete",
+            30: "Attempted",
+            60: "Okay",
+            90: "Great",
+            100: "HoF",
+        }
         print(f"[PDF GEN] Rendering section '{section_title}' with {len(section_submissions)} submissions", flush=True)
         if not section_submissions:
             content.append(Paragraph(f"{section_title}: None", normal_style))
@@ -142,6 +150,7 @@ def generate_student_report_pdf(student_name, student_email, submissions, ctf_na
             print(f"[PDF GEN] Processing submission {idx}: {sub.get('challenge')}", flush=True)
             challenge = html_escape(sub.get('challenge', 'Unknown Challenge'))
             mark = sub.get('mark')
+            mark_name = sub.get('mark_name') or percent_to_name.get(mark, str(mark) if mark is not None else None)
             challenge_value = sub.get('challengeValue', 100)
             comment = html_escape(sub.get('comment', ''))
             submitted_at = html_escape(sub.get('submitted_at', 'N/A'))
@@ -151,7 +160,7 @@ def generate_student_report_pdf(student_name, student_email, submissions, ctf_na
             # Calculate percentage
             if mark is not None:
                 percentage = (mark / challenge_value) * 100
-                mark_text = f"{mark}/{challenge_value} ({percentage:.1f}%)"
+                mark_text = f"{mark_name} ({percentage:.1f}%)"
                 mark_color = HexColor('#27ae60') if percentage >= 70 else HexColor('#e74c3c')
             else:
                 mark_text = "Not marked"

@@ -2,8 +2,28 @@ import { useState } from 'react';
 import './SubmissionDetail.css';
 import SubmissionTile from '../dashboard/SubmissionTile';
 
-export default function SubmissionDetail({ submission, relatedSubmissions, onSelectRelated, onNext, onPrevious, onSave }) {
-  const [mark, setMark] = useState(submission.mark ?? '');
+export default function SubmissionDetail({ submission, onNext, onPrevious, onSave }) {
+  // Mark categories and their corresponding percentages
+  const MARK_OPTIONS = [
+    { label: 'Incomplete', value: 'incomplete', percent: 0 },
+    { label: 'Attempted', value: 'attempted', percent: 30 },
+    { label: 'Okay', value: 'okay', percent: 60 },
+    { label: 'Great', value: 'great', percent: 90 },
+    { label: 'Hall of Fame (HoF)', value: 'hof', percent: 100 },
+  ];
+
+  // Map backend value to select value
+  function getMarkValue(val) {
+    if (typeof val === 'string') return val;
+    if (val === 0) return 'incomplete';
+    if (val === 30) return 'attempted';
+    if (val === 60) return 'okay';
+    if (val === 90) return 'great';
+    if (val === 100) return 'hof';
+    return '';
+  }
+
+  const [mark, setMark] = useState(getMarkValue(submission.mark));
   const [comment, setComment] = useState(submission.comment ?? '');
   const [error, setError] = useState('');
   const isTechnical = Boolean(submission.isTechnical);
@@ -15,20 +35,21 @@ export default function SubmissionDetail({ submission, relatedSubmissions, onSel
       return;
     }
     // Validate that mark is provided
-    if (mark === '' || mark === null || mark === undefined) {
-      setError(`Mark is required. Please enter a value between 0-${maxPoints}.`);
+    if (!mark) {
+      setError('Mark is required.');
       return;
     }
 
-    const markValue = Number(mark);
-    if (isNaN(markValue) || markValue < 0 || markValue > maxPoints) {
-      setError(`Mark must be a number between 0 and ${maxPoints}.`);
+    // Find the selected mark option
+    const selected = MARK_OPTIONS.find(opt => opt.value === mark);
+    if (!selected) {
+      setError('Invalid mark selection.');
       return;
     }
 
     setError('');
     try {
-      const result = await onSave(submission.id, markValue, comment, {
+      const result = await onSave(submission.id, selected.value, comment, {
         wasUnmarked: submission.mark === null,
       });
       if (result?.showEmptyState) {
@@ -107,17 +128,29 @@ export default function SubmissionDetail({ submission, relatedSubmissions, onSel
           ) : (
             <>
               <div className="form-group">
-                <label htmlFor="mark">Mark (out of {maxPoints}) *</label>
-                <input
-                  id="mark"
-                  type="number"
-                  min="0"
-                  max={maxPoints}
-                  value={mark}
-                  onChange={(e) => setMark(e.target.value)}
-                  placeholder={`Enter mark (0-${maxPoints})`}
-                  required
-                />
+                <label>Mark *</label>
+                <div style={{ display: 'flex', gap: '8px', margin: '8px 0' }}>
+                  {MARK_OPTIONS.map(opt => (
+
+                    <button
+                      key={opt.value}
+                      type="button"
+                      className={mark === opt.value ? 'mark-btn selected' : 'mark-btn'}
+                      onClick={() => setMark(opt.value)}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '4px',
+                        border: mark === opt.value ? '2px solid #007bff' : '1px solid #ccc',
+                        background: mark === opt.value ? '#e6f0ff' : '#fff',
+                        fontWeight: mark === opt.value ? 'bold' : 'normal',
+                        cursor: 'pointer',
+                        outline: 'none',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="form-group">

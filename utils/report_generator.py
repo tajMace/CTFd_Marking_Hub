@@ -46,6 +46,14 @@ def get_student_submissions_for_report(user_id, category=None):
     print(f"[REPORT DEBUG] Found {len(marking_subs)} marking submissions for user {user_id}", flush=True)
     
     report_data = []
+    # Mark percentage to name mapping
+    percent_to_name = {
+        0: "Incomplete",
+        30: "Attempted",
+        60: "Okay",
+        90: "Great",
+        100: "HoF",
+    }
     for marking_sub in marking_subs:
         sub = marking_sub.submission
         challenge = sub.challenge
@@ -63,12 +71,16 @@ def get_student_submissions_for_report(user_id, category=None):
         if is_technical:
             remainder = stripped_name[4:].lstrip(" :-_")
             display_name = remainder or challenge_name
-        
+
+        # Map mark percentage to name if possible
+        mark_name = percent_to_name.get(marking_sub.mark, str(marking_sub.mark) if marking_sub.mark is not None else None)
+
         report_data.append({
             'challenge': display_name,
             'submitted_at': sub.date.strftime("%Y-%m-%d %H:%M") if sub.date else 'N/A',
             'flag': sub.provided or '',
             'mark': marking_sub.mark,
+            'mark_name': mark_name,
             'challengeValue': challenge.value if challenge else 100,  # Max points for the challenge
             'comment': marking_sub.comment or '',
             'is_technical': is_technical,
