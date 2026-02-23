@@ -173,11 +173,12 @@ Summary:
 """
         for s in submissions[:10]:
             mark = s['mark']
-            if mark is not None:
-                percentage = (mark / s.get('challengeValue', 100)) * 100
-                email_text += f"\n- {s['challenge']}: {mark}/{s.get('challengeValue', 100)} ({percentage:.1f}%)"
+            challenge_value = s.get('challengeValue', 100)
+            if challenge_value == 0:
+                percentage = 0
             else:
-                email_text += f"\n- {s['challenge']}: Not yet marked"
+                percentage = (mark / challenge_value) * 100
+            email_text += f"\n- {s['challenge']}: {mark}/{challenge_value} ({percentage:.1f}%)"
         
         email_text += f"""
 
