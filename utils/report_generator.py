@@ -27,6 +27,8 @@ def get_student_submissions_for_report(user_id, category=None):
     """
     from CTFd.models import Submissions, Users, Challenges
     
+    # Debug: Log received user_id and category
+    print(f"[REPORT DEBUG] Called with user_id={user_id}, category='{category}'", flush=True)
     student = Users.query.get(user_id)
     if not student:
         print(f"[REPORT DEBUG] Student {user_id} not found", flush=True)
@@ -43,7 +45,9 @@ def get_student_submissions_for_report(user_id, category=None):
         query = query.filter(Challenges.category == category)
     
     marking_subs = query.all()
-    print(f"[REPORT DEBUG] Found {len(marking_subs)} marking submissions for user {user_id}", flush=True)
+    print(f"[REPORT DEBUG] Found {len(marking_subs)} marking submissions for user {user_id} in category '{category}'", flush=True)
+    for ms in marking_subs:
+        print(f"[REPORT DEBUG] marking_sub id={ms.id}, mark={ms.mark}, submission_id={ms.submission_id}", flush=True)
     
     report_data = []
     # Mark percentage to name mapping
@@ -85,7 +89,9 @@ def get_student_submissions_for_report(user_id, category=None):
             'comment': marking_sub.comment or '',
             'is_technical': is_technical,
         })
-    
+    print(f"[REPORT DEBUG] report_data length={len(report_data)}", flush=True)
+    for rd in report_data:
+        print(f"[REPORT DEBUG] report_data: {rd}", flush=True)
     print(f"[REPORT DEBUG] Returning {len(report_data)} submissions for report", flush=True)
     return sorted(report_data, key=lambda x: x['submitted_at'])
 
