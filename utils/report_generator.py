@@ -175,10 +175,10 @@ Summary:
             mark = s['mark']
             challenge_value = s.get('challengeValue', 100)
             if challenge_value == 0:
-                percentage = 0
+                email_text += f"\n- {s['challenge']}: {mark}/{challenge_value} (0%)"
             else:
                 percentage = (mark / challenge_value) * 100
-            email_text += f"\n- {s['challenge']}: {mark}/{challenge_value} ({percentage:.1f}%)"
+                email_text += f"\n- {s['challenge']}: {mark}/{challenge_value} ({percentage:.1f}%)"
         
         email_text += f"""
 
