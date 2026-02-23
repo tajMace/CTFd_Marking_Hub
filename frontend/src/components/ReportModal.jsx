@@ -3,7 +3,6 @@ import './ReportModal.css';
 
 function ReportModal({ isOpen, onClose, isAdmin }) {
   const [activeTab, setActiveTab] = useState('trigger');
-//   const [studentEmail, setStudentEmail] = useState('');
   const [reportHistory, setReportHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -46,6 +45,28 @@ function ReportModal({ isOpen, onClose, isAdmin }) {
     setActiveTab(tab);
     if (tab === 'history') {
       loadReportHistory();
+    }
+  };
+
+  const handleSendStudentReport = async (userId, category) => {
+    setLoading(true);
+    setMessage('');
+    try {
+      const res = await fetch(`/api/marking_hub/reports/send/${userId}?category=${encodeURIComponent(category)}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMessage(`✓ ${data.message}`);
+        loadReportHistory();
+      } else {
+        setMessage(`✗ ${data.message}`);
+      }
+    } catch (err) {
+      setMessage(`Error: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -121,6 +142,24 @@ function ReportModal({ isOpen, onClose, isAdmin }) {
                       <div className="col-date">{report.sentAt}</div>
                       <div className="col-count">{report.submissionCount}</div>
                       <div className="col-marked">{report.markedCount}</div>
+                      <div className="col-action">
+                        <input
+                          type="text"
+                          placeholder="Category"
+                          style={{ marginRight: '8px', padding: '4px' }}
+                          id={`category-input-${report.id}`}
+                        />
+                        <button
+                          className="send-button"
+                          onClick={() => {
+                            const category = document.getElementById(`category-input-${report.id}`).value;
+                            handleSendStudentReport(report.userId, category);
+                          }}
+                          disabled={loading}
+                        >
+                          Send Report
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
