@@ -885,11 +885,7 @@ def load(app):
 
             user = get_current_user()
 
-            # Get submissions visible to this user
-            if not _is_tutor(user.id):
-                return jsonify({"message": "Forbidden"}), 403
-
-            # Use new many-to-many relationship
+            # Restrict all users, including admins, to their assigned students
             assigned_user_ids = [student.id for student in user.students]
             if not assigned_user_ids:
                 return jsonify({
@@ -920,19 +916,9 @@ def load(app):
                 if sub.mark is None:
                     category_counts[category]["unmarked"] += 1
             
-            # Format response
-            categories = [
-                {
-                    "category": cat,
-                    "unmarkedCount": counts["unmarked"],
-                    "totalCount": counts["total"]
-                }
-                for cat, counts in sorted(category_counts.items())
-            ]
-            
             return jsonify({
                 "success": True,
-                "categories": categories
+                "categories": category_counts
             })
         except Exception as e:
             return jsonify({
