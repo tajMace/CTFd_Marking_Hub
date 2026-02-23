@@ -61,15 +61,27 @@ def load(app):
         user = get_current_user()
         include_tech = request.args.get("include_tech", "false").lower() in {"1", "true", "yes"}
 
-        if is_admin():
-            submissions = MarkingSubmission.query.all()
+        if is_admin() or _is_tutor(user.id):
+            # Get all students assigned to this user (admin or tutor)
+            assigned_user_ids = [student.id for student in user.students]
+
+            if not assigned_user_ids:
+                return jsonify([])
+
+            from CTFd.models import Submissions
+
+            submissions = (
+                MarkingSubmission.query
+                .join(Submissions, MarkingSubmission.submission_id == Submissions.id)
+                .filter(Submissions.user_id.in_(assigned_user_ids))
+                .all()
+            )
             if include_tech:
                 return jsonify([sub.to_dict() for sub in submissions])
             visible = [sub for sub in submissions if not _is_technical_challenge(sub.submission.challenge)]
             return jsonify([sub.to_dict() for sub in visible])
 
-        if not _is_tutor(user.id):
-            return jsonify({"message": "Forbidden"}), 403
+        return jsonify({"message": "Forbidden"}), 403
 
 
         # Get all students assigned to this tutor (many-to-many)
@@ -885,7 +897,7 @@ def load(app):
 
             user = get_current_user()
 
-            # Restrict all users, including admins, to their assigned students
+            # Ensure all users, including admins, are restricted to their assigned students
             assigned_user_ids = [student.id for student in user.students]
             if not assigned_user_ids:
                 return jsonify({
@@ -893,16 +905,17 @@ def load(app):
                     "categories": []
                 })
 
+            # Filter submissions to include only those from assigned students
             submissions_query = MarkingSubmission.query.join(
                 Submissions, MarkingSubmission.submission_id == Submissions.id
             ).join(
                 Challenges, Submissions.challenge_id == Challenges.id
             ).filter(Submissions.user_id.in_(assigned_user_ids))
 
-            # Get all submissions with their categories
+            # Fetch and process submissions
             submissions = submissions_query.all()
 
-            # Group by category and count marked/unmarked
+            # Group submissions by category and count marked/unmarked
             category_counts = {}
             include_tech = request.args.get("include_tech", "false").lower() in {"1", "true", "yes"}
 
@@ -915,7 +928,7 @@ def load(app):
                 category_counts[category]["total"] += 1
                 if sub.mark is None:
                     category_counts[category]["unmarked"] += 1
-            
+
             return jsonify({
                 "success": True,
                 "categories": category_counts
