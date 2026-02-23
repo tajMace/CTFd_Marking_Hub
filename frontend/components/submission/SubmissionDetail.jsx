@@ -131,7 +131,6 @@ export default function SubmissionDetail({ submission, onNext, onPrevious, onSav
                 <label>Mark *</label>
                 <div style={{ display: 'flex', gap: '8px', margin: '8px 0' }}>
                   {MARK_OPTIONS.map(opt => (
-
                     <button
                       key={opt.value}
                       type="button"
