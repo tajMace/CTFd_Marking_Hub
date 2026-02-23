@@ -139,7 +139,8 @@ export default function SubmissionDetail({ submission, onNext, onPrevious, onSav
                       style={{
                         padding: '8px 12px',
                         borderRadius: '4px',
-                        border: mark === opt.value ? '2px solid #007bff' : '1px solid #ccc',                        fontWeight: mark === opt.value ? 'bold' : 'normal',
+                        border: mark === opt.value ? '2px solid #007bff' : '1px solid #ccc',
+                        fontWeight: mark === opt.value ? 'bold' : 'normal',
                         cursor: 'pointer',
                         outline: 'none',
                       }}
