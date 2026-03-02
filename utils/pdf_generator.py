@@ -160,7 +160,11 @@ def generate_student_report_pdf(student_name, student_email, submissions, ctf_na
             # Calculate percentage
             if mark is not None:
                 percentage = (mark / challenge_value) * 100 if challenge_value else 0
-                mark_text = f"{mark_name} ({percentage:.1f}%)"
+                # if the mark_name already contains a percent symbol leave it alone
+                if mark_name and '%' in mark_name:
+                    mark_text = mark_name
+                else:
+                    mark_text = f"{mark_name} ({percentage:.1f}%)"
                 mark_color = HexColor('#27ae60') if percentage >= 70 else HexColor('#e74c3c')
             else:
                 mark_text = "Not marked"
