@@ -12,11 +12,13 @@ A comprehensive marking dashboard for non-flagged answers, including submission 
 - **Tutor Assignment** - Assign students to specific tutors for distributed marking
 - **Progress Tracking** - Visual progress bar showing marking completion
 - **Unmarked Filter** - Quickly see what still needs grading
+  - Navigation arrows now traverse the full list of visible submissions, so you can move from an unmarked to a marked entry without toggling any filters.
 - **Dynamic Marking Scales** - Support for challenges with custom max point values (not just 0-100)
 - **TECH Auto-Assessment** - Technical challenges (TECH prefix) are automatically marked based on flag correctness
 
 ### Student Reports
 - **Weekly Performance Reports** - Automatically generate and email PDF reports to students
+  - Reports for a given week/category now include every exercise in that bucket.  Unattempted challenges appear with a 0% mark (labelled "0% (non-submission_)").
 - **PDF Generation** - Beautiful formatted reports with:
   - Challenge name
   - Submitted answer/flag

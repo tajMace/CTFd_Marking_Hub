@@ -160,7 +160,8 @@ function App() {
 
   const handleExerciseClick = (challengeId) => {
     setSelectedExerciseId(challengeId);
-    const exerciseSubs = visibleSubmissions
+    // start from the current filtered set so that category/showMarked filters apply
+    const exerciseSubs = filteredSubmissions
       .filter(sub => sub.challengeId === challengeId)
       .sort((a, b) => {
         const aUnmarked = a.mark === null;
@@ -266,7 +267,9 @@ function App() {
 
     if (viewMode === 'exercise') {
       const exerciseId = selectedSubmission.challengeId ?? selectedExerciseId;
-      return latestSubmissions
+      // use filteredSubmissions so that any active filters (category, showMarked)
+      // influence the navigation list here as well.
+      return filteredSubmissions
         .filter(sub => sub.challengeId === exerciseId)
         .sort((a, b) => {
           const aUnmarked = a.mark === null;
@@ -299,6 +302,14 @@ function App() {
   };
 
   const getNavigationList = (options = {}) => {
+    // When navigating within a view we used to restrict the list to the same
+    // marked/unmarked section that the current submission belonged to.  That
+    // behaviour meant that if you were looking at an unmarked entry you could
+    // never scroll forward into the already‑marked items even though they were
+    // visible in the list.  Remove that restriction: the default list now
+    // consists of all _filtered_ submissions (respecting category/showMarked),
+    // or all related submissions in exercise view.
+
     if (viewMode === 'exercise') {
       return relatedSubmissions;
     }
@@ -308,10 +319,8 @@ function App() {
     if (options.forceMarked) {
       return latestMarked;
     }
-    if (selectedSubmission?.mark === null) {
-      return latestUnmarked;
-    }
-    return latestMarked;
+    // fallback to filtered set so any active filters are applied
+    return filteredSubmissions;
   };
 
   const handleNext = (options = {}) => {

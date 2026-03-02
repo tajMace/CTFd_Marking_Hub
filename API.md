@@ -782,6 +782,7 @@ curl -X DELETE "http://localhost:8000/api/marking_hub/deadlines/5" \
 **Notes:**
 - Sends email with performance summary
 - Generates PDF with detailed feedback
+- When filtering by category, the report now lists **every exercise** in that week/category.  Missing submissions are shown with a 0% mark labelled "0% (non-submission_)".
 - Reports are tracked in the StudentReport table
 - Can filter by category to send category-specific reports
 
@@ -816,6 +817,7 @@ curl -X POST "http://localhost:8000/api/marking_hub/reports/send/42?category=Wee
 **Notes:**
 - Returns PDF with student performance summary
 - Includes all marked submissions and tutor feedback
+- Category-specific reports also include unattempted exercises as zero‑marked entries so students see every assignment.
 - Technical and non-technical submissions shown separately
 - File is automatically generated, not pre-stored
 

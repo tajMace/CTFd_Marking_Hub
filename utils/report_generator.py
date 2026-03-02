@@ -16,14 +16,20 @@ logger = logging.getLogger(__name__)
 def get_student_submissions_for_report(user_id, category=None):
     """
     Get all marked submissions for a student.
-    Optionally filter by challenge category (e.g., 'Week1', 'Week2').
-    
+
+    When a category/week is specified this also ensures the returned list
+    includes **every challenge** in that category.  If the student has not
+    submitted an exercise the corresponding entry is injected with a 0 mark
+    and a special "0% (non-submission_)" label so the report can display the
+    missing work as part of the week.  This mirrors the behaviour of the
+    student-facing report UI and allows PDFs to show unattempted exercises.
+
     Args:
         user_id (int): Student user ID
         category (str): Optional category to filter by
         
     Returns:
-        list: of dicts with submission info
+        list: of dicts with submission info (including placeholders)
     """
     from CTFd.models import Submissions, Users, Challenges
     
@@ -58,6 +64,10 @@ def get_student_submissions_for_report(user_id, category=None):
         90: "Great",
         100: "HoF",
     }
+
+    # keep track of which challenges we've already accounted for (used when injecting missing ones)
+    existing_challenge_ids = set()
+
     for marking_sub in marking_subs:
         sub = marking_sub.submission
         challenge = sub.challenge
@@ -66,6 +76,9 @@ def get_student_submissions_for_report(user_id, category=None):
         is_technical = stripped_name.upper().startswith("TECH")
 
         print(f"[REPORT DEBUG] Processing submission {marking_sub.id}: challenge={challenge_name}, mark={marking_sub.mark}, is_technical={is_technical}", flush=True)
+
+        if challenge:
+            existing_challenge_ids.add(challenge.id)
 
         if not is_technical and marking_sub.mark is None:
             print(f"[REPORT DEBUG] Skipping unmarked non-technical submission {marking_sub.id}", flush=True)
@@ -89,6 +102,39 @@ def get_student_submissions_for_report(user_id, category=None):
             'comment': marking_sub.comment or '',
             'is_technical': is_technical,
         })
+    # if category-specific request, include any challenges in that bucket which the student
+    # never submitted. These should show up as 0% with a non-submission marker.
+    if category:
+        from CTFd.models import Challenges
+        all_challenges = Challenges.query.filter(Challenges.category == category).all()
+        print(f"[REPORT DEBUG] Category '{category}' has {len(all_challenges)} total challenges", flush=True)
+        for challenge in all_challenges:
+            if challenge.id in existing_challenge_ids:
+                continue
+            challenge_name = challenge.name or "Unknown"
+            stripped_name = challenge_name.lstrip()
+            is_technical = stripped_name.upper().startswith("TECH")
+            display_name = challenge_name
+            if is_technical:
+                remainder = stripped_name[4:].lstrip(" :-_")
+                display_name = remainder or challenge_name
+
+            # treat non-submission as 0 mark
+            mark = 0
+            # use the requested wording with trailing underscore
+            mark_name = "0% (non-submission_)"  # explicit label for phantom entries
+
+            report_data.append({
+                'challenge': display_name,
+                'submitted_at': '',
+                'flag': '',
+                'mark': mark,
+                'mark_name': mark_name,
+                'challengeValue': challenge.value if challenge else 100,
+                'comment': '',
+                'is_technical': is_technical,
+            })
+        print(f"[REPORT DEBUG] Added {len(all_challenges) - len(existing_challenge_ids)} missing challenges for user {user_id}", flush=True)
     print(f"[REPORT DEBUG] report_data length={len(report_data)}", flush=True)
     for rd in report_data:
         print(f"[REPORT DEBUG] report_data: {rd}", flush=True)
@@ -250,6 +296,9 @@ def generate_weekly_reports(category=None):
     """
     Generate and send reports for all students with marked submissions.
     Optionally filter by category (week).
+    When a category is provided the individual reports generated will also include
+    every exercise in that category – unsubmitted ones appear with a 0%
+    ``"0% (non-submission_)"`` mark.
     Called manually via admin API endpoint.
     
     Args:
@@ -298,27 +347,3 @@ def generate_weekly_reports(category=None):
     category_label = f" for {category}" if category else ""
     logger.info(f"Reports generated{category_label}: {results['sent']} sent, {results['failed']} failed")
     return results
-
-
-def fix_tutor_allocation_and_update_marks():
-    # Step 1: Clear existing tutor-student assignments
-    db.session.execute("DELETE FROM marking_assignments")
-
-    # Step 2: Assign specific tutors to students (example logic)
-    tutors = Users.query.filter_by(type="tutor").all()
-    students = Users.query.filter_by(type="student").all()
-
-    for i, student in enumerate(students):
-        tutor = tutors[i % len(tutors)]  # Round-robin assignment
-        db.session.execute(
-            "INSERT INTO marking_assignments (student_id, tutor_id, assigned_at) VALUES (:student_id, :tutor_id, :assigned_at)",
-            {"student_id": student.id, "tutor_id": tutor.id, "assigned_at": datetime.utcnow()}
-        )
-
-    # Step 3: Update maximum marks for all exercises
-    db.session.execute("UPDATE exercises SET max_mark = 100")
-
-    # Commit changes
-    db.session.commit()
-
-    print("Tutor allocation fixed and maximum marks updated.")
