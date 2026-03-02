@@ -783,6 +783,7 @@ curl -X DELETE "http://localhost:8000/api/marking_hub/deadlines/5" \
 - Sends email with performance summary
 - Generates PDF with detailed feedback
 - When filtering by category, the report now lists **every exercise** in that week/category.  Missing submissions are shown with a 0% mark labelled "0% (non-submission_)".
+- Sending a report for a student also creates placeholder submissions/marks in the database for any exercises they never attempted (marked 0).  This makes non‑submissions appear in exercise statistics and persists the zero grade.
 - Reports are tracked in the StudentReport table
 - Can filter by category to send category-specific reports
 
@@ -903,7 +904,8 @@ curl -X GET "http://localhost:8000/api/marking_hub/reports/student/42" \
 ```
 
 **Notes:**
-- Sends reports to all students with marked submissions
+- Sends reports to all students with marked submissions (and, when a category is provided, any student who has submitted work at all).
+- Before generating each student's report the system inserts zero‑mark entries for any challenges they missed, so unfinished exercises appear in the database and stats.
 - Creates records for successful deliveries
 - Errors are logged but don't stop other deliveries
 

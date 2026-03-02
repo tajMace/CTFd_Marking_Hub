@@ -142,6 +142,60 @@ def get_student_submissions_for_report(user_id, category=None):
     return sorted(report_data, key=lambda x: x['submitted_at'])
 
 
+
+
+def _ensure_zero_for_user_category(user_id, category):
+    """Insert placeholder submissions/marks for any challenges in *category* that a
+    student never submitted.
+
+    This is called just before generating a report so that the database will
+    contain explicit zero-mark entries for missing work.  Those records show up
+    in the various exercise statistics pages and persist for auditing.
+
+    Existing submissions (marked or unmarked) are left alone.  If the student
+    later submits a real answer, the auto-sync logic will either update or
+    create a proper MarkingSubmission and this helper will no longer match.
+    """
+    from CTFd.models import Submissions, Challenges
+
+    # Fetch all challenges for the category; nothing to do otherwise
+    challenges = Challenges.query.filter(Challenges.category == category).all()
+    if not challenges:
+        return
+
+    for challenge in challenges:
+        # has the student already got a marking entry for this challenge?
+        existing_mark = (
+            MarkingSubmission.query
+            .join(Submissions, MarkingSubmission.submission_id == Submissions.id)
+            .filter(Submissions.user_id == user_id)
+            .filter(Submissions.challenge_id == challenge.id)
+            .first()
+        )
+        if existing_mark:
+            continue
+
+        # No marking at all: create a dummy submission and give it a zero mark
+        dummy = Submissions(
+            user_id=user_id,
+            challenge_id=challenge.id,
+            provided="",
+            date=datetime.utcnow(),
+        )
+        db.session.add(dummy)
+        db.session.flush()  # ensure dummy.id is populated
+
+        zero_mark = MarkingSubmission(
+            submission_id=dummy.id,
+            mark=0,
+            comment="Auto-generated 0 for missing submission",
+            marked_at=datetime.utcnow(),
+        )
+        db.session.add(zero_mark)
+        logger.debug(f"Inserted zero mark for user {user_id}, challenge {challenge.id}")
+    db.session.commit()
+
+
 def generate_and_send_student_report(user_id, triggered_by_user_id=None, category=None):
     """
     Generate a PDF report for a student and send via email.
@@ -163,6 +217,10 @@ def generate_and_send_student_report(user_id, triggered_by_user_id=None, categor
         return False, "Student has no email address"
     
     try:
+        # Before grabbing data, ensure any missing exercises have zero marks
+        if category:
+            _ensure_zero_for_user_category(user_id, category)
+
         # Get submissions (optionally filtered by category)
         submissions = get_student_submissions_for_report(user_id, category=category)
         
@@ -327,6 +385,20 @@ def generate_weekly_reports(category=None):
     marked_submissions = query.all()
     
     student_ids = set(sub.submission.user_id for sub in marked_submissions)
+
+    # Also include students who have submitted but not yet been marked (so they
+    # will get zeros created by the report generator).  This only applies when a
+    # category filter is provided because we can't reasonably enumerate "all"
+    # students otherwise.
+    if category:
+        from CTFd.models import Submissions, Challenges
+        subs = (
+            Submissions.query
+            .join(Challenges, Submissions.challenge_id == Challenges.id)
+            .filter(Challenges.category == category)
+            .all()
+        )
+        student_ids.update(sub.user_id for sub in subs)
     
     results = {
         'category': category,

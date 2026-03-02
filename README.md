@@ -13,12 +13,14 @@ A comprehensive marking dashboard for non-flagged answers, including submission 
 - **Progress Tracking** - Visual progress bar showing marking completion
 - **Unmarked Filter** - Quickly see what still needs grading
   - Navigation arrows now traverse the full list of visible submissions, so you can move from an unmarked to a marked entry without toggling any filters.
+  - When working “by exercise” the next/previous buttons correctly advance through the filtered exercise list, and after saving a mark the interface will skip to the next unmarked submission (if requested) rather than getting stuck.
 - **Dynamic Marking Scales** - Support for challenges with custom max point values (not just 0-100)
 - **TECH Auto-Assessment** - Technical challenges (TECH prefix) are automatically marked based on flag correctness
 
 ### Student Reports
 - **Weekly Performance Reports** - Automatically generate and email PDF reports to students
   - Reports for a given week/category now include every exercise in that bucket.  Unattempted challenges appear with a 0% mark (labelled "0% (non-submission_)").
+  - When a report is generated for a student the system will also insert zero‑mark entries in the database for every exercise they skipped.  These records are visible in the dashboard stats and help you track completion.
 - **PDF Generation** - Beautiful formatted reports with:
   - Challenge name
   - Submitted answer/flag

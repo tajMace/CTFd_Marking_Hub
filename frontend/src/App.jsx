@@ -234,14 +234,6 @@ function App() {
     return buildLatestSubmissions(visibleSubmissions);
   }, [buildLatestSubmissions, visibleSubmissions]);
 
-  const latestUnmarked = useMemo(() => {
-    return latestSubmissions.filter(sub => sub.mark === null);
-  }, [latestSubmissions]);
-
-  const latestMarked = useMemo(() => {
-    return latestSubmissions.filter(sub => sub.mark !== null);
-  }, [latestSubmissions]);
-
   const filteredSubmissions = useMemo(() => {
     let result = latestSubmissions;
     
@@ -302,28 +294,36 @@ function App() {
   };
 
   const getNavigationList = (options = {}) => {
-    // When navigating within a view we used to restrict the list to the same
-    // marked/unmarked section that the current submission belonged to.  That
-    // behaviour meant that if you were looking at an unmarked entry you could
-    // never scroll forward into the already‑marked items even though they were
-    // visible in the list.  Remove that restriction: the default list now
-    // consists of all _filtered_ submissions (respecting category/showMarked),
-    // or all related submissions in exercise view.
-
+    // Determine the base list of submissions to navigate.  Normally this is the
+    // set of filtered submissions (taking into account category/showMarked
+    // toggles).  In exercise view we further restrict to the "related"
+    // submissions for the currently selected exercise.  We also honour the
+    // forceUnmarked/forceMarked options so that callers (e.g. after saving a
+    // mark) can skip directly to the next unmarked entry.
+    
+    let baseList;
     if (viewMode === 'exercise') {
-      return relatedSubmissions;
+      baseList = relatedSubmissions;
+    } else {
+      baseList = filteredSubmissions;
     }
+
     if (options.forceUnmarked) {
-      return latestUnmarked;
+      return baseList.filter(sub => sub.mark === null);
     }
     if (options.forceMarked) {
-      return latestMarked;
+      return baseList.filter(sub => sub.mark !== null);
     }
-    // fallback to filtered set so any active filters are applied
-    return filteredSubmissions;
+    return baseList;
   };
 
   const handleNext = (options = {}) => {
+    // React may pass a click event as the first argument when called directly
+    // from a button.  Ignore it and use an empty options object instead.
+    if (options && typeof options.preventDefault === 'function') {
+      options = {};
+    }
+
     const navList = getNavigationList(options);
     const currentIndex = getNavigationIndex(navList);
     if (currentIndex > -1 && currentIndex < navList.length - 1) {
@@ -334,6 +334,10 @@ function App() {
   };
 
   const handlePrevious = (options = {}) => {
+    if (options && typeof options.preventDefault === 'function') {
+      options = {};
+    }
+
     const navList = getNavigationList(options);
     const currentIndex = getNavigationIndex(navList);
     if (currentIndex > 0) {
