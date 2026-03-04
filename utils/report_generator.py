@@ -45,6 +45,10 @@ def get_student_submissions_for_report(user_id, category=None):
         .join(Submissions, MarkingSubmission.submission_id == Submissions.id)
         .join(Challenges, Submissions.challenge_id == Challenges.id)
         .filter(Submissions.user_id == user_id)
+        # avoid the polymorphic loading error by skipping any row whose type
+        # column is unexpectedly NULL; such a record is corrupt and should be
+        # fixed, but this prevents the entire report from crashing.
+        .filter(Submissions.type.isnot(None))
     )
     
     if category:
@@ -119,7 +123,7 @@ def get_student_submissions_for_report(user_id, category=None):
                 remainder = stripped_name[4:].lstrip(" :-_")
                 display_name = remainder or challenge_name
 
-            # treat non-submission as 0 mark
+                    # treat non-submission as 0 mark
             mark = 0
             # use the requested wording with trailing underscore
             mark_name = "0% (non-submission_)"  # explicit label for phantom entries
@@ -144,6 +148,32 @@ def get_student_submissions_for_report(user_id, category=None):
 
 
 
+def _cleanup_null_submission_types():
+    """Ensure no ``Submissions`` rows have a NULL ``type``.
+
+    The :class:`Submissions` model uses the ``type`` column as the polymorphic
+    discriminator.  SQLAlchemy will raise ``InvalidRequestError`` when it
+    encounters a row whose discriminator is ``NULL`` because it cannot decide
+    which subclass to instantiate.  This helper updates any such rows to
+    ``"incorrect"`` (the conventional placeholder value used elsewhere in the
+    codebase) and commits the transaction.
+
+    It is safe to invoke repeatedly; once the table is clean the update is a
+    no-op.
+    """
+    from CTFd.models import Submissions
+
+    # convert any NULL types to the default incorrect value
+    updated = (
+        db.session.query(Submissions)
+        .filter(Submissions.type.is_(None))
+        .update({"type": "incorrect"}, synchronize_session="fetch")
+    )
+    if updated:
+        logger.info(f"cleaned {updated} submissions with NULL type")
+        db.session.commit()
+
+
 def _ensure_zero_for_user_category(user_id, category):
     """Insert placeholder submissions/marks for any challenges in *category* that a
     student never submitted.
@@ -157,6 +187,13 @@ def _ensure_zero_for_user_category(user_id, category):
     create a proper MarkingSubmission and this helper will no longer match.
     """
     from CTFd.models import Submissions, Challenges
+
+    # Make sure we don't have stray NULLs for this student/category either; if
+    # there are any, upgrade them to "incorrect" before proceeding.
+    db.session.query(Submissions).filter(
+        Submissions.user_id == user_id,
+        Submissions.type.is_(None)
+    ).update({"type": "incorrect"}, synchronize_session="fetch")
 
     # Fetch all challenges for the category; nothing to do otherwise
     challenges = Challenges.query.filter(Challenges.category == category).all()
@@ -176,11 +213,16 @@ def _ensure_zero_for_user_category(user_id, category):
             continue
 
         # No marking at all: create a dummy submission and give it a zero mark
+        # the Submissions model uses a polymorphic "type" column that
+        # must not be null; choose a generic value so SQLAlchemy can load the
+        # object later.  "incorrect" is used elsewhere in the codebase for
+        # non-flag submissions, so it's a safe default.
         dummy = Submissions(
             user_id=user_id,
             challenge_id=challenge.id,
             provided="",
             date=datetime.utcnow(),
+            type="incorrect",
         )
         db.session.add(dummy)
         db.session.flush()  # ensure dummy.id is populated
@@ -217,9 +259,21 @@ def generate_and_send_student_report(user_id, triggered_by_user_id=None, categor
         return False, "Student has no email address"
     
     try:
+        # make sure the database doesn't contain any problematic submissions
+        # before we try to walk the relationships. this is cheap and only runs
+        # once per report request.
+        _cleanup_null_submission_types()
+
         # Before grabbing data, ensure any missing exercises have zero marks
         if category:
             _ensure_zero_for_user_category(user_id, category)
+        else:
+            # if we're sending a global report, the caller may have already
+            # inserted zeros for all weeks but if not, we don't have a clean way
+            # to enumerate every challenge here; the weekly-sender already
+            # iterates categories itself. the main thing is that _ensure_zero
+            # never leaves a NULL type behind.
+            pass
 
         # Get submissions (optionally filtered by category)
         submissions = get_student_submissions_for_report(user_id, category=category)
@@ -367,6 +421,11 @@ def generate_weekly_reports(category=None):
     """
     from CTFd.models import Users, Challenges
     
+    # Ensure there are no NULL type records in the whole table before we
+    # start touching submissions; this avoids the polymorphic discriminator
+    # error you were seeing during the global "send reports" operation.
+    _cleanup_null_submission_types()
+
     # Build query for marked submissions
     query = (
         MarkingSubmission.query

@@ -16,6 +16,10 @@ def load(app):
     # Create tables if they don't exist
     with app.app_context():
         db.create_all()
+        # fix any legacy submissions with NULL type discriminator so future
+        # queries don't blow up (see polymorphic discriminator issue)
+        from .utils.report_generator import _cleanup_null_submission_types
+        _cleanup_null_submission_types()
 
     # Custom asset route
     dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -178,8 +182,11 @@ def load(app):
     @admins_only
     @bypass_csrf_protection
     def sync_submissions():
+        # ensure no stray NULL discriminator values before loading rows
+        from .utils.report_generator import _cleanup_null_submission_types
         from CTFd.models import Submissions
 
+        _cleanup_null_submission_types()
         all_submissions = Submissions.query.all()
         synced = 0
         auto_marked = 0
@@ -1019,6 +1026,9 @@ def load(app):
             
             # Count unique student/challenge pairs (not total submissions)
             from CTFd.models import Submissions
+            # clean up any rows with NULL type before we load them
+            from .utils.report_generator import _cleanup_null_submission_types
+            _cleanup_null_submission_types()
             all_submissions = Submissions.query.all()
             unique_solutions = set()
             for sub in all_submissions:

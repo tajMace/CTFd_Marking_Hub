@@ -501,3 +501,38 @@ h2 {
   gap: 1rem;
   justify-content: center;
 }
+
+/* grading button styles */
+.grade-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  align-items: center;
+}
+.grade-buttons label {
+  margin-right: 0.5rem;
+  font-weight: 600;
+}
+.mark-button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid #495057;
+  border-radius: 4px;
+  background-color: #2f323b;
+  color: #ced4da;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+.mark-button:hover {
+  background-color: #454c55;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+.mark-button.selected {
+  background-color: #51cf66;
+  border-color: #51cf66;
+  color: #1b1c20;
+  font-weight: 600;
+}
+
