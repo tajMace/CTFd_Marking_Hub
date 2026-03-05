@@ -450,7 +450,8 @@ def generate_weekly_reports(category=None):
     # category filter is provided because we can't reasonably enumerate "all"
     # students otherwise.
     if category:
-        from CTFd.models import Submissions, Challenges
+        # use the global Submissions import, avoid local import that would
+        # shadow the name and cause UnboundLocalError when used earlier
         subs = (
             Submissions.query
             .join(Challenges, Submissions.challenge_id == Challenges.id)
