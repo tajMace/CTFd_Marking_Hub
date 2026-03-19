@@ -155,7 +155,7 @@ def load(app):
         mark_map = {
             'incomplete': 0,
             'attempted': 30,
-            'okay': 60,
+            'good': 60,
             'great': 90,
             'hof': 100,
         }
@@ -936,9 +936,14 @@ def load(app):
                 if sub.mark is None:
                     category_counts[category]["unmarked"] += 1
 
+            categories_list = [
+                {"category": cat, "total": counts["total"], "unmarkedCount": counts["unmarked"]}
+                for cat, counts in sorted(category_counts.items())
+            ]
+
             return jsonify({
                 "success": True,
-                "categories": category_counts
+                "categories": categories_list
             })
         except Exception as e:
             return jsonify({

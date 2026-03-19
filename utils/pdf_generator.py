@@ -134,7 +134,7 @@ def generate_student_report_pdf(student_name, student_email, submissions, ctf_na
         percent_to_name = {
             0: "Incomplete",
             30: "Attempted",
-            60: "Okay",
+            60: "Good",
             90: "Great",
             100: "HoF",
         }
@@ -165,7 +165,18 @@ def generate_student_report_pdf(student_name, student_email, submissions, ctf_na
                     mark_text = mark_name
                 else:
                     mark_text = f"{mark_name} ({percentage:.1f}%)"
-                mark_color = HexColor('#27ae60') if percentage >= 70 else HexColor('#e74c3c')
+                
+                if percentage == 100:
+                    mark_color = HexColor('#FFD700')
+                elif percentage >= 90:
+                    mark_color = HexColor("#38CAC7")
+                elif percentage >= 60:
+                    mark_color = HexColor('#27ae60')
+                elif percentage >= 30:
+                    mark_color = HexColor('#e67e22')
+                else:
+                    mark_color = HexColor('#e74c3c')
+                    
             else:
                 mark_text = "Not marked"
                 mark_color = HexColor('#95a5a6')

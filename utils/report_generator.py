@@ -64,7 +64,7 @@ def get_student_submissions_for_report(user_id, category=None):
     percent_to_name = {
         0: "Incomplete",
         30: "Attempted",
-        60: "Okay",
+        60: "Good",
         90: "Great",
         100: "HoF",
     }
