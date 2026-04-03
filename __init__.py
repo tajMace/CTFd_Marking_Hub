@@ -952,10 +952,13 @@ def load(app):
             }), 500
 
     # API: Trigger reports for a specific category (week)
-    @app.route("/api/marking_hub/reports/send-by-category/<category>", methods=["POST"])
+    @app.route("/api/marking_hub/reports/send-by-category", methods=["POST"])
     @admins_only
     @bypass_csrf_protection
-    def trigger_category_reports(category):
+    def trigger_category_reports():
+        category = request.args.get('category') or (request.get_json(silent=True) or {}).get('category')
+        if not category:
+            return jsonify({"success": False, "message": "No category specified"}), 400
         try:
             results = generate_weekly_reports(category=category)
             return jsonify({
