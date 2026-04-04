@@ -380,11 +380,11 @@
             <table class="table table-striped table-sm">
               <thead>
                 <tr>
-                  <th>ID</th><th>Challenge</th><th>Category</th><th>Type</th><th>Assignment Name</th><th>Actions</th>
+                  <th>ID</th><th>Challenge</th><th>Category</th><th>Type</th><th>Assignment Name</th><th>Weight&nbsp;(%)</th><th></th>Actions</th>
                 </tr>
               </thead>
               <tbody id="markable-tbody">
-                <tr><td colspan="6" class="text-center text-muted">Loading…</td></tr>
+                <tr><td colspan="7" class="text-center text-muted">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -1546,7 +1546,7 @@
       const tbody = document.getElementById("markable-tbody");
       tbody.innerHTML = "";
       if (!exercises || exercises.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No challenges found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No challenges found.</td></tr>';
         return;
       }
       for (const ex of exercises) {
@@ -1554,6 +1554,8 @@
         tr.dataset.challengeId = ex.challengeId;
         const currentType = ex.submissionType || "";
         const currentAssignment = ex.assignmentName || "";
+        const currentWeight = ex.weight != null ? ex.weight : "";
+        const isAssignment = currentType === "assignment";
 
         tr.innerHTML = `
           <td><code>${ex.challengeId}</code></td>
@@ -1563,7 +1565,7 @@
             <select class="form-select form-select-sm markable-type-select" style="min-width:130px;">
               <option value="">— Not Set —</option>
               <option value="homework" ${currentType === "homework" ? "selected" : ""}>Homework</option>
-              <option value="assignment" ${currentType === "assignment" ? "selected" : ""}>Assignment</option>
+              <option value="assignment" ${isAssignment ? "selected" : ""}>Assignment</option>
               <option value="uncounted" ${currentType === "uncounted" ? "selected" : ""}>Uncounted</option>
             </select>
           </td>
@@ -1571,7 +1573,14 @@
             <input type="text" class="form-control form-control-sm markable-asgn-input"
               placeholder="e.g. Assignment 1"
               value="${escM(currentAssignment)}"
-              style="min-width:140px; display:${currentType === "assignment" ? "inline-block" : "none"};" />
+              style="min-width:140px; display:${isAssignment ? "inline-block" : "none"};" />
+          </td>
+          <td>
+            <input type="number" class="form-control form-control-sm markable-weight-input"
+              placeholder="e.g. 25"
+              min="0.01" max="100" step="0.01"
+              value="${currentWeight}"
+              style="max-width:90px; display:${isAssignment ? "inline-block" : "none"};" />
           </td>
           <td>
             <button class="btn btn-sm btn-primary markable-save-btn me-1">Save</button>
@@ -1580,8 +1589,11 @@
 
         const select = tr.querySelector(".markable-type-select");
         const asgnInput = tr.querySelector(".markable-asgn-input");
+        const weightInput = tr.querySelector(".markable-weight-input");
         select.addEventListener("change", () => {
-          asgnInput.style.display = select.value === "assignment" ? "inline-block" : "none";
+          const show = select.value === "assignment";
+          asgnInput.style.display = show ? "inline-block" : "none";
+          weightInput.style.display = show ? "inline-block" : "none";
         });
 
         tr.querySelector(".markable-save-btn").addEventListener("click", () => saveMarkable(ex.challengeId, tr));
@@ -1609,15 +1621,21 @@
     async function saveMarkable(challengeId, tr) {
       const type = tr.querySelector(".markable-type-select").value;
       const asgnName = tr.querySelector(".markable-asgn-input").value.trim();
+      const weightRaw = tr.querySelector(".markable-weight-input").value.trim();
+      const weight = weightRaw !== "" ? parseFloat(weightRaw) : null;
       if (!type) {
         showMarkableStatus("warning", "Select a type before saving.");
+        return;
+      }
+      if (type === "assignment" && weight !== null && (isNaN(weight) || weight <= 0 || weight > 100)) {
+        showMarkableStatus("warning", "Weight must be a number between 0 and 100.");
         return;
       }
       try {
         const resp = await fetch(`/api/marking_hub/markable/${challengeId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json", "CSRF-Token": getCsrfToken() },
-          body: JSON.stringify({ submission_type: type, assignment_name: asgnName }),
+          body: JSON.stringify({ submission_type: type, assignment_name: asgnName, weight: weight }),
         });
         const data = await resp.json();
         if (data.success) {

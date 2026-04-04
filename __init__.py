@@ -20,6 +20,28 @@ def load(app):
         # queries don't blow up (see polymorphic discriminator issue)
         from .utils.report_generator import _cleanup_null_submission_types
         _cleanup_null_submission_types()
+        # Add weight column to marking_markable_exercises if it doesn't exist yet
+        # (handles databases created before this column was introduced)
+        try:
+            with db.engine.connect() as conn:
+                cols = [row[1] for row in conn.execute(
+                    db.text("PRAGMA table_info(marking_markable_exercises)")
+                )]
+                if cols and "weight" not in cols:
+                    conn.execute(db.text(
+                        "ALTER TABLE marking_markable_exercises ADD COLUMN weight FLOAT"
+                    ))
+                    conn.commit()
+        except Exception:
+            # Non-SQLite databases or table doesn't exist yet — db.create_all() handles the latter
+            try:
+                with db.engine.connect() as conn:
+                    conn.execute(db.text(
+                        "ALTER TABLE marking_markable_exercises ADD COLUMN weight FLOAT"
+                    ))
+                    conn.commit()
+            except Exception:
+                pass  # Column already exists or table not yet created
 
     # Custom asset route
     dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -1268,6 +1290,7 @@ def load(app):
                 "challengeCategory": ch.category,
                 "submissionType": me.submission_type if me else None,
                 "assignmentName": me.assignment_name if me else None,
+                "weight": me.weight if me else None,
             })
         return jsonify({"success": True, "exercises": result})
 
@@ -1290,12 +1313,23 @@ def load(app):
         if submission_type != "assignment":
             assignment_name = None
 
+        raw_weight = data.get("weight")
+        weight = None
+        if submission_type == "assignment" and raw_weight is not None:
+            try:
+                weight = float(raw_weight)
+                if not (0 < weight <= 100):
+                    return jsonify({"success": False, "message": "weight must be between 0 and 100"}), 400
+            except (TypeError, ValueError):
+                return jsonify({"success": False, "message": "weight must be a number"}), 400
+
         me = MarkableExercise.query.filter_by(challenge_id=challenge_id).first()
         if me is None:
             me = MarkableExercise(challenge_id=challenge_id)
             db.session.add(me)
         me.submission_type = submission_type
         me.assignment_name = assignment_name
+        me.weight = weight
         db.session.commit()
         return jsonify({"success": True, "exercise": me.to_dict()})
 
@@ -1450,10 +1484,12 @@ def load(app):
         ]
 
         # Compute summed marks (earned and possible)
+        # Assignments use per-exercise weights (% contribution to final mark).
+        # If no weights are set, fall back to raw mark / possible scoring.
         homework_earned = 0
         homework_possible = 0
-        assignment_earned = {}   # assignment_name -> earned
-        assignment_possible = {} # assignment_name -> possible
+        # assignment_name -> {weighted_score, total_weight, raw_earned, raw_possible}
+        assignment_data = {}
         for ms in marking_subs:
             challenge = ms.submission.challenge
             me = markable_map.get(challenge.id) if challenge else None
@@ -1465,27 +1501,50 @@ def load(app):
                 homework_possible += possible
             elif me.submission_type == "assignment":
                 name = me.assignment_name or "Assignment"
-                assignment_earned[name] = assignment_earned.get(name, 0) + ms.mark
-                assignment_possible[name] = assignment_possible.get(name, 0) + possible
+                if name not in assignment_data:
+                    assignment_data[name] = {"weighted_score": 0.0, "total_weight": 0.0,
+                                             "raw_earned": 0, "raw_possible": 0,
+                                             "has_weights": False}
+                d = assignment_data[name]
+                d["raw_earned"] += ms.mark
+                d["raw_possible"] += possible
+                if me.weight is not None:
+                    d["has_weights"] = True
+                    d["weighted_score"] += (ms.mark / possible * me.weight) if possible else 0
+                    d["total_weight"] += me.weight
 
         def pct(earned, possible):
             if not possible:
                 return 0.0
             return round(earned / possible * 100, 1)
 
+        assignments_summary = []
+        for name in sorted(assignment_data.keys()):
+            d = assignment_data[name]
+            if d["has_weights"] and d["total_weight"]:
+                # Weighted percentage: sum of (mark/possible * weight) normalised by total weight
+                percentage = round(d["weighted_score"] / d["total_weight"] * 100, 1)
+                assignments_summary.append({
+                    "name": name,
+                    "percentage": percentage,
+                    "weightedScore": round(d["weighted_score"], 1),
+                    "totalWeight": round(d["total_weight"], 1),
+                    "isWeighted": True,
+                })
+            else:
+                assignments_summary.append({
+                    "name": name,
+                    "earned": d["raw_earned"],
+                    "possible": d["raw_possible"],
+                    "percentage": pct(d["raw_earned"], d["raw_possible"]),
+                    "isWeighted": False,
+                })
+
         summary = {
             "homeworkEarned": homework_earned,
             "homeworkPossible": homework_possible,
             "homeworkPercentage": pct(homework_earned, homework_possible),
-            "assignments": [
-                {
-                    "name": name,
-                    "earned": assignment_earned[name],
-                    "possible": assignment_possible[name],
-                    "percentage": pct(assignment_earned[name], assignment_possible[name]),
-                }
-                for name in sorted(assignment_earned.keys())
-            ],
+            "assignments": assignments_summary,
         }
 
         return jsonify({"success": True, "categories": result, "summary": summary})

@@ -274,10 +274,17 @@
     for (const asgn of summary.assignments) {
       const el = document.createElement("div");
       el.className = "summary-item";
-      el.innerHTML = `
-        <span class="label">${escapeHtml(asgn.name)}</span>
-        <span class="value">${asgn.percentage}%</span>
-        <span class="sub-value">${asgn.earned} / ${asgn.possible} marks</span>`;
+      if (asgn.isWeighted) {
+        el.innerHTML = `
+          <span class="label">${escapeHtml(asgn.name)}</span>
+          <span class="value">${asgn.percentage}%</span>
+          <span class="sub-value">${asgn.weightedScore} / ${asgn.totalWeight} weighted marks</span>`;
+      } else {
+        el.innerHTML = `
+          <span class="label">${escapeHtml(asgn.name)}</span>
+          <span class="value">${asgn.percentage}%</span>
+          <span class="sub-value">${asgn.earned} / ${asgn.possible} marks</span>`;
+      }
       blockEl.appendChild(el);
     }
 

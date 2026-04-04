@@ -243,6 +243,7 @@ class MarkableExercise(db.Model):
     challenge_id = Column(Integer, ForeignKey("challenges.id", ondelete="CASCADE"), unique=True, nullable=False)
     submission_type = Column(String(50), nullable=False)  # "homework" | "assignment" | "uncounted"
     assignment_name = Column(String(100), nullable=True)  # e.g. "Assignment 1" – only for type "assignment"
+    weight = Column(db.Float, nullable=True)  # % contribution to final assignment mark (0-100); assignment only
     created_at = Column(DateTime, nullable=True, default=datetime.utcnow)
 
     challenge = relationship("Challenges", foreign_keys=[challenge_id], lazy="joined")
@@ -255,6 +256,7 @@ class MarkableExercise(db.Model):
             "challengeCategory": self.challenge.category if self.challenge else None,
             "submissionType": self.submission_type,
             "assignmentName": self.assignment_name,
+            "weight": self.weight,
             "createdAt": self.created_at.strftime("%Y-%m-%d %H:%M:%S") if self.created_at else None,
         }
 
