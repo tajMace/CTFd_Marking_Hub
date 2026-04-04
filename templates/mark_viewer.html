@@ -74,12 +74,6 @@
     font-weight: 600;
     color: #1a1a1a;
   }
-  .submission-link {
-    font-size: 0.82rem;
-    margin-right: 1rem;
-    color: #007bff;
-    white-space: nowrap;
-  }
   .mark-badge {
     font-size: 0.82rem;
     padding: 0.3rem 0.7rem;
@@ -94,6 +88,16 @@
   .mark-attempted{ background:#fd7e14; color:#fff; }
   .mark-incomplete{ background:#dc3545; color:#fff; }
   .mark-unmarked { background:#6c757d; color:#fff; }
+  .uncounted-badge {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 4px;
+    background: #e9ecef;
+    color: #6c757d;
+    border: 1px solid #ced4da;
+    white-space: nowrap;
+    margin-right: 0.5rem;
+  }
   .feedback-panel {
     background: #fff;
     border: 1px solid #dee2e6;
@@ -213,13 +217,11 @@
       nameEl.textContent = sub.challengeName;
       row.appendChild(nameEl);
 
-      if (sub.challengeLink) {
-        const link = document.createElement("a");
-        link.href = sub.challengeLink;
-        link.className = "submission-link";
-        link.textContent = "View Challenge";
-        link.addEventListener("click", e => e.stopPropagation());
-        row.appendChild(link);
+      if (sub.submissionType === "uncounted") {
+        const badge = document.createElement("span");
+        badge.className = "uncounted-badge";
+        badge.textContent = "Uncounted";
+        row.appendChild(badge);
       }
 
       row.insertAdjacentHTML("beforeend", markBadgeHtml(sub.mark));
