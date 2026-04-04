@@ -139,15 +139,27 @@
     border-radius: 6px;
     padding: 0.5rem 1.1rem;
     font-size: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1rem;
   }
   .summary-item .label {
     color: #495057;
-    margin-right: 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
   }
   .summary-item .value {
     font-weight: 700;
-    font-size: 1.15rem;
+    font-size: 1.5rem;
     color: #0d47a1;
+    line-height: 1.1;
+  }
+  .summary-item .sub-value {
+    font-size: 0.8rem;
+    color: #495057;
   }
   .no-summary {
     color: #6c757d;
@@ -239,29 +251,33 @@
 
   function buildSummary(summary) {
     const container = document.getElementById("summary-content");
-    let hasContent = false;
 
-    const blockEl = document.createElement("div");
-    blockEl.className = "summary-block";
-
-    if (summary.homeworkTotal > 0 || summary.assignments.length > 0) {
-      hasContent = true;
-    }
-
-    if (!hasContent) {
+    const hasSummary = summary.homeworkPossible > 0 || summary.assignments.length > 0;
+    if (!hasSummary) {
       container.innerHTML = '<p class="no-summary">No markable exercises have been configured yet.</p>';
       return;
     }
 
-    const hw = document.createElement("div");
-    hw.className = "summary-item";
-    hw.innerHTML = `<span class="label">Homework Total</span><span class="value">${summary.homeworkTotal}</span>`;
-    blockEl.appendChild(hw);
+    const blockEl = document.createElement("div");
+    blockEl.className = "summary-block";
+
+    if (summary.homeworkPossible > 0) {
+      const hw = document.createElement("div");
+      hw.className = "summary-item";
+      hw.innerHTML = `
+        <span class="label">Homework</span>
+        <span class="value">${summary.homeworkPercentage}%</span>
+        <span class="sub-value">${summary.homeworkEarned} / ${summary.homeworkPossible} marks</span>`;
+      blockEl.appendChild(hw);
+    }
 
     for (const asgn of summary.assignments) {
       const el = document.createElement("div");
       el.className = "summary-item";
-      el.innerHTML = `<span class="label">${escapeHtml(asgn.name)} Total</span><span class="value">${asgn.total}</span>`;
+      el.innerHTML = `
+        <span class="label">${escapeHtml(asgn.name)}</span>
+        <span class="value">${asgn.percentage}%</span>
+        <span class="sub-value">${asgn.earned} / ${asgn.possible} marks</span>`;
       blockEl.appendChild(el);
     }
 

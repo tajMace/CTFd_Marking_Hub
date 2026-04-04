@@ -1449,27 +1449,42 @@ def load(app):
             for cat, subs in sorted(categories.items())
         ]
 
-        # Compute summed marks
-        homework_total = 0
-        assignment_totals = {}  # assignment_name -> total
+        # Compute summed marks (earned and possible)
+        homework_earned = 0
+        homework_possible = 0
+        assignment_earned = {}   # assignment_name -> earned
+        assignment_possible = {} # assignment_name -> possible
         for ms in marking_subs:
-            if ms.mark is None:
-                continue
             challenge = ms.submission.challenge
             me = markable_map.get(challenge.id) if challenge else None
             if me is None or me.submission_type == "uncounted":
                 continue
+            possible = challenge.value if challenge and challenge.value else 100
             if me.submission_type == "homework":
-                homework_total += ms.mark
+                homework_earned += ms.mark
+                homework_possible += possible
             elif me.submission_type == "assignment":
                 name = me.assignment_name or "Assignment"
-                assignment_totals[name] = assignment_totals.get(name, 0) + ms.mark
+                assignment_earned[name] = assignment_earned.get(name, 0) + ms.mark
+                assignment_possible[name] = assignment_possible.get(name, 0) + possible
+
+        def pct(earned, possible):
+            if not possible:
+                return 0.0
+            return round(earned / possible * 100, 1)
 
         summary = {
-            "homeworkTotal": homework_total,
+            "homeworkEarned": homework_earned,
+            "homeworkPossible": homework_possible,
+            "homeworkPercentage": pct(homework_earned, homework_possible),
             "assignments": [
-                {"name": name, "total": total}
-                for name, total in sorted(assignment_totals.items())
+                {
+                    "name": name,
+                    "earned": assignment_earned[name],
+                    "possible": assignment_possible[name],
+                    "percentage": pct(assignment_earned[name], assignment_possible[name]),
+                }
+                for name in sorted(assignment_earned.keys())
             ],
         }
 
