@@ -4,7 +4,7 @@ from CTFd.models import db, Users
 from CTFd.utils.decorators import admins_only, authed_only
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.plugins import bypass_csrf_protection
-from .models import MarkingSubmission, MarkingAssignmentHelper, MarkingTutor, MarkingDeadline, StudentReport, SubmissionToken
+from .models import MarkingSubmission, MarkingAssignmentHelper, MarkingTutor, MarkingDeadline, StudentReport, SubmissionToken, MarkableExercise, MarkingCategoryRelease
 from .utils.report_generator import generate_and_send_student_report, generate_weekly_reports, get_available_categories
 from .utils.pdf_generator import generate_student_report_pdf
 from datetime import datetime
@@ -1244,4 +1244,223 @@ def load(app):
                 "message": f"Error fetching exercise statistics: {str(e)}"
             }), 500
 
+    # -----------------------------------------------------------------------
+    # MARKABLE EXERCISES — admin configuration
+    # -----------------------------------------------------------------------
+
+    @app.route("/api/marking_hub/markable", methods=["GET"])
+    @admins_only
+    def get_markable_exercises():
+        """Return all challenges enriched with their MarkableExercise config."""
+        from CTFd.models import Challenges
+        challenges = Challenges.query.order_by(Challenges.category, Challenges.name).all()
+        # Build a lookup map for quick access
+        markable_map = {
+            me.challenge_id: me
+            for me in MarkableExercise.query.all()
+        }
+        result = []
+        for ch in challenges:
+            me = markable_map.get(ch.id)
+            result.append({
+                "challengeId": ch.id,
+                "challengeName": ch.name,
+                "challengeCategory": ch.category,
+                "submissionType": me.submission_type if me else None,
+                "assignmentName": me.assignment_name if me else None,
+            })
+        return jsonify({"success": True, "exercises": result})
+
+    @app.route("/api/marking_hub/markable/<int:challenge_id>", methods=["PUT"])
+    @admins_only
+    @bypass_csrf_protection
+    def upsert_markable_exercise(challenge_id):
+        """Create or update the MarkableExercise entry for a challenge."""
+        from CTFd.models import Challenges
+        challenge = Challenges.query.get(challenge_id)
+        if not challenge:
+            return jsonify({"success": False, "message": "Challenge not found"}), 404
+
+        data = request.get_json(silent=True) or {}
+        submission_type = data.get("submission_type", "").strip().lower()
+        if submission_type not in ("homework", "assignment", "uncounted"):
+            return jsonify({"success": False, "message": "submission_type must be homework, assignment, or uncounted"}), 400
+
+        assignment_name = data.get("assignment_name", "").strip() or None
+        if submission_type != "assignment":
+            assignment_name = None
+
+        me = MarkableExercise.query.filter_by(challenge_id=challenge_id).first()
+        if me is None:
+            me = MarkableExercise(challenge_id=challenge_id)
+            db.session.add(me)
+        me.submission_type = submission_type
+        me.assignment_name = assignment_name
+        db.session.commit()
+        return jsonify({"success": True, "exercise": me.to_dict()})
+
+    @app.route("/api/marking_hub/markable/<int:challenge_id>", methods=["DELETE"])
+    @admins_only
+    @bypass_csrf_protection
+    def delete_markable_exercise(challenge_id):
+        """Remove a challenge from the MARKABLE list."""
+        me = MarkableExercise.query.filter_by(challenge_id=challenge_id).first()
+        if me is None:
+            return jsonify({"success": False, "message": "Not found"}), 404
+        db.session.delete(me)
+        db.session.commit()
+        return jsonify({"success": True})
+
+    # -----------------------------------------------------------------------
+    # CATEGORY RELEASES — control student mark visibility per category
+    # -----------------------------------------------------------------------
+
+    @app.route("/api/marking_hub/category-releases", methods=["GET"])
+    @authed_only
+    def get_category_releases():
+        """List all categories with their release status."""
+        categories = get_available_categories()
+        release_map = {
+            r.category: r
+            for r in MarkingCategoryRelease.query.all()
+        }
+        result = []
+        for cat in categories:
+            r = release_map.get(cat)
+            result.append({
+                "category": cat,
+                "released": r.released if r else False,
+                "releasedAt": r.released_at.strftime("%Y-%m-%d %H:%M:%S") if r and r.released_at else None,
+                "releasedBy": r.releaser.name if r and r.releaser else None,
+            })
+        return jsonify({"success": True, "releases": result})
+
+    @app.route("/api/marking_hub/category-releases/<path:category>", methods=["PUT"])
+    @admins_only
+    @bypass_csrf_protection
+    def set_category_release(category):
+        """Toggle the released state of a category."""
+        data = request.get_json(silent=True) or {}
+        released = bool(data.get("released", False))
+        user = get_current_user()
+
+        r = MarkingCategoryRelease.query.filter_by(category=category).first()
+        if r is None:
+            r = MarkingCategoryRelease(category=category)
+            db.session.add(r)
+        r.released = released
+        if released:
+            r.released_at = datetime.utcnow()
+            r.released_by = user.id
+        else:
+            r.released_at = None
+            r.released_by = None
+        db.session.commit()
+        return jsonify({"success": True, "release": r.to_dict()})
+
+    # -----------------------------------------------------------------------
+    # STUDENT MARK VIEWER — page + API
+    # -----------------------------------------------------------------------
+
+    @app.route("/marks", methods=["GET"])
+    @authed_only
+    def student_mark_viewer():
+        return render_template("plugins/CTFd_Marking_Hub/templates/mark_viewer.html")
+
+    @app.route("/api/marking_hub/my-marks", methods=["GET"])
+    @authed_only
+    def get_my_marks():
+        """
+        Return the current user's marked submissions for released categories only.
+        Groups results by category.  Includes markable type & assignment name.
+        Strictly scoped to current_user.id — no user_id query param accepted.
+        """
+        from CTFd.models import Submissions, Challenges
+
+        user = get_current_user()
+
+        # Build set of released categories
+        released_categories = {
+            r.category
+            for r in MarkingCategoryRelease.query.filter_by(released=True).all()
+        }
+
+        if not released_categories:
+            return jsonify({"success": True, "categories": []})
+
+        # Fetch this student's MarkingSubmissions whose challenge is in a released category
+        marking_subs = (
+            MarkingSubmission.query
+            .join(Submissions, MarkingSubmission.submission_id == Submissions.id)
+            .join(Challenges, Submissions.challenge_id == Challenges.id)
+            .filter(Submissions.user_id == user.id)
+            .filter(Challenges.category.in_(released_categories))
+            .order_by(Challenges.category, Challenges.name)
+            .all()
+        )
+
+        # Build MarkableExercise lookup
+        markable_map = {
+            me.challenge_id: me
+            for me in MarkableExercise.query.all()
+        }
+
+        # Group by category
+        categories = {}
+        for ms in marking_subs:
+            sub = ms.submission
+            challenge = sub.challenge
+            category = challenge.category if challenge else "Uncategorized"
+            me = markable_map.get(challenge.id) if challenge else None
+            is_tech = _is_technical_challenge(challenge)
+
+            entry = {
+                "markingSubmissionId": ms.id,
+                "challengeId": challenge.id if challenge else None,
+                "challengeName": challenge.name if challenge else "Unknown",
+                "challengeCategory": category,
+                "challengeLink": f"/challenges#{challenge.name}" if challenge and not is_tech else None,
+                "isTechnical": is_tech,
+                "mark": ms.mark,
+                "comment": ms.comment,
+                "markedAt": ms.marked_at.strftime("%Y-%m-%d %H:%M:%S") if ms.marked_at else None,
+                "submissionType": me.submission_type if me else None,
+                "assignmentName": me.assignment_name if me else None,
+            }
+
+            if category not in categories:
+                categories[category] = []
+            categories[category].append(entry)
+
+        # Build sorted category list
+        result = [
+            {"category": cat, "submissions": subs}
+            for cat, subs in sorted(categories.items())
+        ]
+
+        # Compute summed marks
+        homework_total = 0
+        assignment_totals = {}  # assignment_name -> total
+        for ms in marking_subs:
+            if ms.mark is None:
+                continue
+            challenge = ms.submission.challenge
+            me = markable_map.get(challenge.id) if challenge else None
+            if me is None or me.submission_type == "uncounted":
+                continue
+            if me.submission_type == "homework":
+                homework_total += ms.mark
+            elif me.submission_type == "assignment":
+                name = me.assignment_name or "Assignment"
+                assignment_totals[name] = assignment_totals.get(name, 0) + ms.mark
+
+        summary = {
+            "homeworkTotal": homework_total,
+            "assignments": [
+                {"name": name, "total": total}
+                for name, total in sorted(assignment_totals.items())
+            ],
+        }
+
+        return jsonify({"success": True, "categories": result, "summary": summary})
 

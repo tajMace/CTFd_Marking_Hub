@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="row">
+    <div class="col-md-12">
+      <h1 class="mb-1"><i class="fas fa-star"></i> My Marks</h1>
+      <p class="text-muted mb-4">Your marks and feedback — released by your tutor.</p>
+    </div>
+  </div>
+
+  <div id="marks-loading" class="text-center py-5">
+    <i class="fas fa-circle-notch fa-spin fa-3x text-muted"></i>
+    <p class="mt-3 text-muted">Loading your marks…</p>
+  </div>
+
+  <div id="marks-error" class="alert alert-danger" style="display:none;"></div>
+
+  <div id="marks-empty" class="text-center py-5" style="display:none;">
+    <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+    <h4 class="text-muted">No marks available yet</h4>
+    <p class="text-muted">Marks will appear here once your tutor has marked and released them.</p>
+  </div>
+
+  <div id="marks-content" style="display:none;">
+    <!-- Category sections injected here by JS -->
+    <div id="category-sections"></div>
+
+    <!-- Summary section -->
+    <div class="card mt-5 mb-4 border-primary">
+      <div class="card-header bg-primary text-white">
+        <strong><i class="fas fa-calculator"></i> Mark Summary</strong>
+      </div>
+      <div class="card-body">
+        <div id="summary-content"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .category-section {
+    margin-bottom: 2rem;
+  }
+  .category-heading {
+    font-size: 1.3rem;
+    font-weight: 700;
+    padding: 0.4rem 0;
+    border-bottom: 2px solid #dee2e6;
+    margin-bottom: 0.75rem;
+  }
+  .submission-row {
+    display: flex;
+    align-items: center;
+    padding: 0.65rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 0.4rem;
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: background 0.15s;
+    user-select: none;
+  }
+  .submission-row:hover {
+    background: #e9ecef;
+  }
+  .submission-row.expanded {
+    background: #e9ecef;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .submission-name {
+    flex: 1;
+    font-weight: 500;
+  }
+  .submission-link {
+    font-size: 0.82rem;
+    margin-right: 1rem;
+    color: #007bff;
+    white-space: nowrap;
+  }
+  .mark-badge {
+    font-size: 0.82rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 4px;
+    white-space: nowrap;
+    min-width: 90px;
+    text-align: center;
+  }
+  .mark-hof      { background:#ffd700; color:#333; }
+  .mark-great    { background:#28a745; color:#fff; }
+  .mark-good     { background:#17a2b8; color:#fff; }
+  .mark-attempted{ background:#fd7e14; color:#fff; }
+  .mark-incomplete{ background:#dc3545; color:#fff; }
+  .mark-unmarked { background:#6c757d; color:#fff; }
+  .feedback-panel {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-top: none;
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.9rem;
+  }
+  .feedback-label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.25rem;
+  }
+  .feedback-text {
+    color: #212529;
+    white-space: pre-wrap;
+  }
+  .no-feedback {
+    color: #6c757d;
+    font-style: italic;
+  }
+  .expand-icon {
+    margin-left: 0.6rem;
+    color: #6c757d;
+    font-size: 0.75rem;
+    transition: transform 0.2s;
+  }
+  .submission-row.expanded .expand-icon {
+    transform: rotate(180deg);
+  }
+  /* Mark summary */
+  .summary-block {
+    display: flex;
+    align-items: baseline;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .summary-item {
+    background: #f0f4ff;
+    border: 1px solid #c5d3f0;
+    border-radius: 6px;
+    padding: 0.5rem 1.1rem;
+    font-size: 1rem;
+  }
+  .summary-item .label {
+    color: #495057;
+    margin-right: 0.4rem;
+  }
+  .summary-item .value {
+    font-weight: 700;
+    font-size: 1.15rem;
+    color: #0d47a1;
+  }
+  .no-summary {
+    color: #6c757d;
+    font-style: italic;
+  }
+</style>
+
+<script>
+  const MARK_LABELS = {
+    100: { label: "HoF",       cls: "mark-hof" },
+    90:  { label: "Great",     cls: "mark-great" },
+    60:  { label: "Good",      cls: "mark-good" },
+    30:  { label: "Attempted", cls: "mark-attempted" },
+    0:   { label: "Incomplete",cls: "mark-incomplete" },
+  };
+
+  function markBadgeHtml(mark) {
+    if (mark === null || mark === undefined) {
+      return '<span class="mark-badge mark-unmarked">Not Marked</span>';
+    }
+    const m = MARK_LABELS[mark];
+    if (m) {
+      return `<span class="mark-badge ${m.cls}">${m.label} (${mark})</span>`;
+    }
+    // Fallback for non-standard values
+    return `<span class="mark-badge mark-good">${mark}</span>`;
+  }
+
+  function toggleFeedback(rowEl, panelEl) {
+    const visible = panelEl.style.display !== "none";
+    panelEl.style.display = visible ? "none" : "block";
+    rowEl.classList.toggle("expanded", !visible);
+  }
+
+  function buildCategorySection(categoryData) {
+    const section = document.createElement("div");
+    section.className = "category-section";
+
+    const heading = document.createElement("div");
+    heading.className = "category-heading";
+    heading.textContent = categoryData.category;
+    section.appendChild(heading);
+
+    for (const sub of categoryData.submissions) {
+      // Row
+      const row = document.createElement("div");
+      row.className = "submission-row";
+
+      const nameEl = document.createElement("span");
+      nameEl.className = "submission-name";
+      nameEl.textContent = sub.challengeName;
+      row.appendChild(nameEl);
+
+      if (sub.challengeLink) {
+        const link = document.createElement("a");
+        link.href = sub.challengeLink;
+        link.className = "submission-link";
+        link.textContent = "View Challenge";
+        link.addEventListener("click", e => e.stopPropagation());
+        row.appendChild(link);
+      }
+
+      row.insertAdjacentHTML("beforeend", markBadgeHtml(sub.mark));
+
+      const chevron = document.createElement("span");
+      chevron.className = "expand-icon";
+      chevron.innerHTML = "&#9660;";
+      row.appendChild(chevron);
+
+      // Feedback panel
+      const panel = document.createElement("div");
+      panel.className = "feedback-panel";
+      panel.style.display = "none";
+
+      if (sub.comment) {
+        panel.innerHTML = `<div class="feedback-label">Feedback</div><div class="feedback-text">${escapeHtml(sub.comment)}</div>`;
+      } else {
+        panel.innerHTML = `<span class="no-feedback">No feedback provided yet.</span>`;
+      }
+
+      row.addEventListener("click", () => toggleFeedback(row, panel));
+
+      section.appendChild(row);
+      section.appendChild(panel);
+    }
+
+    return section;
+  }
+
+  function buildSummary(summary) {
+    const container = document.getElementById("summary-content");
+    let hasContent = false;
+
+    const blockEl = document.createElement("div");
+    blockEl.className = "summary-block";
+
+    if (summary.homeworkTotal > 0 || summary.assignments.length > 0) {
+      hasContent = true;
+    }
+
+    if (!hasContent) {
+      container.innerHTML = '<p class="no-summary">No markable exercises have been configured yet.</p>';
+      return;
+    }
+
+    const hw = document.createElement("div");
+    hw.className = "summary-item";
+    hw.innerHTML = `<span class="label">Homework Total</span><span class="value">${summary.homeworkTotal}</span>`;
+    blockEl.appendChild(hw);
+
+    for (const asgn of summary.assignments) {
+      const el = document.createElement("div");
+      el.className = "summary-item";
+      el.innerHTML = `<span class="label">${escapeHtml(asgn.name)} Total</span><span class="value">${asgn.total}</span>`;
+      blockEl.appendChild(el);
+    }
+
+    container.appendChild(blockEl);
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  async function loadMarks() {
+    const loading = document.getElementById("marks-loading");
+    const error   = document.getElementById("marks-error");
+    const empty   = document.getElementById("marks-empty");
+    const content = document.getElementById("marks-content");
+
+    try {
+      const resp = await fetch("/api/marking_hub/my-marks", { credentials: "same-origin" });
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}));
+        throw new Error(body.message || `HTTP ${resp.status}`);
+      }
+      const data = await resp.json();
+
+      loading.style.display = "none";
+
+      if (!data.success) {
+        throw new Error(data.message || "Unknown error");
+      }
+
+      if (!data.categories || data.categories.length === 0) {
+        empty.style.display = "block";
+        return;
+      }
+
+      content.style.display = "block";
+
+      const sectionsEl = document.getElementById("category-sections");
+      for (const cat of data.categories) {
+        sectionsEl.appendChild(buildCategorySection(cat));
+      }
+
+      buildSummary(data.summary);
+
+    } catch (err) {
+      loading.style.display = "none";
+      error.textContent = "Failed to load marks: " + err.message;
+      error.style.display = "block";
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", loadMarks);
+</script>
+{% endblock %}

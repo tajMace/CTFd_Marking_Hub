@@ -228,3 +228,57 @@ class SubmissionToken(db.Model):
 
     def __repr__(self):
         return f"<SubmissionToken {self.id} - User {self.user_id} Challenge {self.challenge_id}>"
+
+
+class MarkableExercise(db.Model):
+    """
+    Maps a CTFd challenge to a markable submission type.
+    submission_type: "homework", "assignment", or "uncounted"
+    assignment_name: only populated when submission_type == "assignment",
+                     allows individual assignment tracking (e.g. "Assignment 1").
+    """
+    __tablename__ = "marking_markable_exercises"
+
+    id = Column(Integer, primary_key=True)
+    challenge_id = Column(Integer, ForeignKey("challenges.id", ondelete="CASCADE"), unique=True, nullable=False)
+    submission_type = Column(String(50), nullable=False)  # "homework" | "assignment" | "uncounted"
+    assignment_name = Column(String(100), nullable=True)  # e.g. "Assignment 1" – only for type "assignment"
+    created_at = Column(DateTime, nullable=True, default=datetime.utcnow)
+
+    challenge = relationship("Challenges", foreign_keys=[challenge_id], lazy="joined")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "challengeId": self.challenge_id,
+            "challengeName": self.challenge.name if self.challenge else None,
+            "challengeCategory": self.challenge.category if self.challenge else None,
+            "submissionType": self.submission_type,
+            "assignmentName": self.assignment_name,
+            "createdAt": self.created_at.strftime("%Y-%m-%d %H:%M:%S") if self.created_at else None,
+        }
+
+
+class MarkingCategoryRelease(db.Model):
+    """
+    Controls whether marks for a given category/week are visible to students.
+    Only submissions belonging to a released category will appear on the student
+    mark viewer page.
+    """
+    __tablename__ = "marking_category_releases"
+
+    id = Column(Integer, primary_key=True)
+    category = Column(String(80), unique=True, nullable=False)
+    released = Column(Boolean, default=False, nullable=False)
+    released_at = Column(DateTime, nullable=True)   # set when released=True; cleared when reverted
+    released_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    releaser = relationship("Users", foreign_keys=[released_by], lazy="select")
+
+    def to_dict(self):
+        return {
+            "category": self.category,
+            "released": self.released,
+            "releasedAt": self.released_at.strftime("%Y-%m-%d %H:%M:%S") if self.released_at else None,
+            "releasedBy": self.releaser.name if self.releaser else None,
+        }
