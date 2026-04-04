@@ -1700,7 +1700,10 @@
           <td>${relDate}</td>
           <td>${relBy}</td>
           <td>
-            <button class="btn btn-sm ${btnClass}" onclick="toggleRelease(${JSON.stringify(r.category)}, ${r.released})">
+            <button class="btn btn-sm ${btnClass}"
+              data-category="${escR(r.category)}"
+              data-released="${r.released}"
+              onclick="toggleRelease(this.dataset.category, this.dataset.released === 'true')">
               ${btnLabel}
             </button>
           </td>`;
