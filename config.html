@@ -1447,24 +1447,28 @@
       const reportsTab = document.getElementById("reports-tab");
       const deadlinesTab = document.getElementById("deadlines-tab");
       const statisticsTab = document.getElementById("statistics-tab");
+      const markableTab = document.getElementById("markable-tab");
+      const releasesTab = document.getElementById("releases-tab");
       
       const tutorSection = document.getElementById("tutor-section");
       const reportsSection = document.getElementById("reports-section");
       const deadlinesSection = document.getElementById("deadlines-section");
       const statisticsSection = document.getElementById("statistics-section");
+      const markableSection = document.getElementById("markable-section");
+      const releasesSection = document.getElementById("releases-section");
       
       const showTab = (tabId) => {
         console.log("Switching to tab:", tabId);
         
         // Hide all panes
-        [tutorSection, reportsSection, deadlinesSection, statisticsSection].forEach(pane => {
+        [tutorSection, reportsSection, deadlinesSection, statisticsSection, markableSection, releasesSection].forEach(pane => {
           if (pane) {
             pane.classList.remove("show", "active");
           }
         });
         
         // Remove active from all tabs
-        [tutorTab, reportsTab, deadlinesTab, statisticsTab].forEach(tab => {
+        [tutorTab, reportsTab, deadlinesTab, statisticsTab, markableTab, releasesTab].forEach(tab => {
           if (tab) {
             tab.classList.remove("active");
           }
@@ -1483,8 +1487,14 @@
         } else if (tabId === "statistics-tab" && statisticsTab && statisticsSection) {
           statisticsTab.classList.add("active");
           statisticsSection.classList.add("show", "active");
-          loadStatistics(); // Load stats when tab is clicked
-          loadCategoryStatistics(); // Load category stats when tab is clicked
+          loadStatistics();
+          loadCategoryStatistics();
+        } else if (tabId === "markable-tab" && markableTab && markableSection) {
+          markableTab.classList.add("active");
+          markableSection.classList.add("show", "active");
+        } else if (tabId === "releases-tab" && releasesTab && releasesSection) {
+          releasesTab.classList.add("active");
+          releasesSection.classList.add("show", "active");
         }
       };
       
@@ -1492,6 +1502,8 @@
       if (reportsTab) reportsTab.addEventListener("click", (e) => { e.preventDefault(); showTab("reports-tab"); });
       if (deadlinesTab) deadlinesTab.addEventListener("click", (e) => { e.preventDefault(); showTab("deadlines-tab"); });
       if (statisticsTab) statisticsTab.addEventListener("click", (e) => { e.preventDefault(); showTab("statistics-tab"); });
+      if (markableTab) markableTab.addEventListener("click", (e) => { e.preventDefault(); showTab("markable-tab"); });
+      if (releasesTab) releasesTab.addEventListener("click", (e) => { e.preventDefault(); showTab("releases-tab"); });
       
       console.log("Bootstrap tabs initialized successfully");
     };
