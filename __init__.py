@@ -1388,16 +1388,27 @@ def load(app):
         if not released_categories:
             return jsonify({"success": True, "categories": []})
 
-        # Fetch this student's MarkingSubmissions whose challenge is in a released category
-        marking_subs = (
+        # Fetch this student's marked MarkingSubmissions whose challenge is in a released category
+        # ordered by marked_at desc so we can keep only the latest per challenge
+        all_marked_subs = (
             MarkingSubmission.query
             .join(Submissions, MarkingSubmission.submission_id == Submissions.id)
             .join(Challenges, Submissions.challenge_id == Challenges.id)
             .filter(Submissions.user_id == user.id)
             .filter(Challenges.category.in_(released_categories))
-            .order_by(Challenges.category, Challenges.name)
+            .filter(MarkingSubmission.mark.isnot(None))
+            .order_by(Challenges.category, Challenges.name, MarkingSubmission.marked_at.desc())
             .all()
         )
+
+        # Deduplicate: keep only the latest marked submission per challenge
+        seen_challenges = set()
+        marking_subs = []
+        for ms in all_marked_subs:
+            cid = ms.submission.challenge_id if ms.submission else None
+            if cid is not None and cid not in seen_challenges:
+                seen_challenges.add(cid)
+                marking_subs.append(ms)
 
         # Build MarkableExercise lookup
         markable_map = {
